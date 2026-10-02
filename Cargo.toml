@@ -1,6 +1,6 @@
 [package]
 name = "ffrwd-node"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 description = "Write an ffrwd node module in Rust: a trait for the node, and the bindings, params, time and emission glue around it."

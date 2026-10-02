@@ -240,7 +240,7 @@ crate and live beside the sidecar's other test modules.
 crate-type = ["cdylib"]
 
 [dependencies]
-ffrwd-node = { git = "https://github.com/imbcmdth/ffrwd-node", tag = "v0.1.1" }
+ffrwd-node = { git = "https://github.com/imbcmdth/ffrwd-node", tag = "v0.2.0" }
 serde = { version = "1", features = ["derive"] }
 ```
 
