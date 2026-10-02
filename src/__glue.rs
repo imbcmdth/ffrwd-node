@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 pub mod bindings {
     wit_bindgen::generate!({
         path: "wit",
-        world: "ffrwd:av/node-module@0.19.0",
+        world: "ffrwd:av/node-module@0.19.1",
         pub_export_macro: true,
         default_bindings_module: "ffrwd_node::__glue::bindings",
     });
@@ -22,12 +22,14 @@ use bindings::ffrwd::av::types as wt;
 use crate::node::{Node, Runner};
 use crate::out::{Emitted, Payload};
 use crate::shape::{
-    Accepts, Anchor, Clock, Input, Interval, Kind, Output, Pairing, RowsUse, Shape, Wants,
+    Accepts, Anchor, Binding, Bound, Clock, Input, Interval, Kind, Output, Pairing, RowsUse, Shape,
+    Wants,
 };
 use crate::tick::Source;
 use crate::types::{
     AudioFormat, BoundStream, CodedAudio, CodedFormat, CodedStream, CodedVideo, ColorInfo, Feed,
-    FeedStart, Format, Frame, Message, Packet, RenditionMeta, StreamInfo, TimedRows, VideoFormat,
+    FeedStart, Format, Frame, Message, Packet, RenditionMeta, StreamHint, StreamInfo, TimedRows,
+    VideoFormat,
 };
 use crate::Rational;
 
@@ -54,8 +56,15 @@ impl<N: Node> wit_node::Guest for Glue<N> {
         }
     }
 
-    fn shape(params: String, bound: Vec<String>) -> Result<nt::NodeShape, String> {
-        Runner::<N>::shape(&params, &bound).map(node_shape)
+    fn shape(params: String, bound: Vec<nt::Binding>) -> Result<nt::NodeShape, String> {
+        let bound: Vec<Binding> = bound
+            .into_iter()
+            .map(|binding| Binding {
+                input: binding.input,
+                streams: binding.streams.into_iter().map(stream_hint).collect(),
+            })
+            .collect();
+        Runner::<N>::shape(&params, Bound::from(bound)).map(node_shape)
     }
 
     fn init(
@@ -96,6 +105,10 @@ impl Source for wit_tick::Tick {
         wit_tick::Tick::pts(self)
     }
 
+    fn ordinal(&self) -> u64 {
+        wit_tick::Tick::ordinal(self)
+    }
+
     fn time_base(&self) -> Rational {
         rational(wit_tick::Tick::time_base(self))
     }
@@ -113,14 +126,14 @@ impl Source for wit_tick::Tick {
     }
 
     fn feed(&self, id: u32) -> Option<Feed> {
-        wit_tick::Tick::feed(self, id).map(|feed| Feed {
-            start: FeedStart {
-                tags: feed.start.tags,
-                first_pts: feed.start.first_pts,
-                at: feed.start.at,
-            },
-            ends: feed.ends,
-        })
+        wit_tick::Tick::feed(self, id).map(feed)
+    }
+
+    fn ended_feeds(&self, id: u32) -> Vec<Feed> {
+        wit_tick::Tick::ended_feeds(self, id)
+            .into_iter()
+            .map(feed)
+            .collect()
     }
 
     fn frames(&self, id: u32) -> Vec<Frame> {
@@ -164,6 +177,18 @@ impl Source for wit_tick::Tick {
                 rows: timed.rows,
             })
             .collect()
+    }
+}
+
+fn feed(value: nt::Feed) -> Feed {
+    Feed {
+        start: FeedStart {
+            tags: value.start.tags,
+            first_pts: value.start.first_pts,
+            at: value.start.at,
+            known: value.start.known,
+        },
+        ends: value.ends,
     }
 }
 
@@ -332,6 +357,13 @@ fn bound_stream(value: nt::BoundStream) -> BoundStream {
         row: value.row,
         decode_delay: value.decode_delay,
         latency: value.latency,
+        hint: stream_hint(value.hint),
+    }
+}
+
+fn stream_hint(value: nt::StreamHint) -> StreamHint {
+    StreamHint {
+        rate: value.rate.map(rational),
     }
 }
 
@@ -344,25 +376,37 @@ fn port_kind(kind: Kind) -> nt::PortKind {
     }
 }
 
+fn anchor(value: Anchor) -> nt::Anchor {
+    match value {
+        Anchor::SharedClock => nt::Anchor::SharedClock,
+        Anchor::FirstFrame => nt::Anchor::FirstFrame,
+        Anchor::Tagged(tag) => nt::Anchor::Tagged(tag),
+    }
+}
+
 fn input_port(input: Input) -> nt::InputPort {
     let pairing = match input.pairing {
         Pairing::Lockstep => nt::Pairing::Lockstep,
         Pairing::Arrival => nt::Pairing::Arrival,
         Pairing::Hold(hold) => nt::Pairing::Hold(nt::Hold {
-            anchor: match hold.anchor {
-                Anchor::SharedClock => nt::Anchor::SharedClock,
-                Anchor::FirstFrame => nt::Anchor::FirstFrame,
-                Anchor::Tagged(tag) => nt::Anchor::Tagged(tag),
-            },
+            anchor: anchor(hold.anchor),
             lead: hold.lead,
             linger: hold.linger,
             timeout: hold.timeout,
             group: hold.group,
             port_param: hold.port_param,
         }),
-        Pairing::Interval(Interval { latency, ahead }) => {
-            nt::Pairing::Interval(nt::Interval { latency, ahead })
-        }
+        Pairing::Interval(Interval {
+            latency,
+            ahead,
+            anchor: on,
+            group,
+        }) => nt::Pairing::Interval(nt::Interval {
+            latency,
+            ahead,
+            anchor: anchor(on),
+            group,
+        }),
     };
     let Accepts {
         pixel_formats,
@@ -396,6 +440,7 @@ fn input_port(input: Input) -> nt::InputPort {
                 Wants::All => wt::Wants::All,
                 Wants::Keyframes => wt::Wants::Keyframes,
                 Wants::First => wt::Wants::First,
+                Wants::Timing => wt::Wants::Timing,
             },
             like,
         },

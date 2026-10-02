@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::Serialize;
 
 use crate::rows::Cue;
@@ -86,6 +88,7 @@ pub struct Out {
     ports: Vec<Port>,
     clock: Rational,
     emitted: Emitted,
+    timing: BTreeMap<u32, String>,
 }
 
 impl Out {
@@ -104,7 +107,14 @@ impl Out {
                 .collect(),
             clock: Rational::MICROS,
             emitted: Emitted::default(),
+            timing: BTreeMap::new(),
         }
+    }
+
+    /// The streams read for their timing alone, by id, with their ports.
+    pub(crate) fn timing(mut self, timing: BTreeMap<u32, String>) -> Out {
+        self.timing = timing;
+        self
     }
 
     pub(crate) fn begin(&mut self, clock: Rational) {
@@ -190,7 +200,8 @@ impl Out {
     }
 
     /// Frame `index` of stream `id` leaving on `port` uncopied, at `pts`.
-    /// Its format has to be the port's.
+    /// Its format has to be the port's, and its input not one read for its
+    /// timing alone.
     pub fn same(
         &mut self,
         port: &str,
@@ -199,6 +210,12 @@ impl Out {
         id: u32,
         index: u32,
     ) -> Result<(), String> {
+        if let Some(input) = self.timing.get(&id) {
+            return Err(format!(
+                "a frame of `{input}` cannot leave on `{port}`: `{input}` is read for its timing \
+                 alone, and the host carries none of its bytes"
+            ));
+        }
         self.stamp(port, &[Kind::Video, Kind::Audio], pts)?;
         self.push(
             port,

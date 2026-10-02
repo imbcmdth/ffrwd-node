@@ -1,11 +1,11 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::out::{Emitted, Out};
 use crate::params::{self, NO_PARAMS};
-use crate::shape::{Bound, RowsUse, Shape};
+use crate::shape::{Bound, RowsUse, Shape, Wants};
 use crate::tick::{Source, Tick};
 use crate::types::BoundStream;
 
@@ -61,7 +61,9 @@ pub trait Node: Sized + 'static {
     type Params: DeserializeOwned;
 
     /// The ports and clock for these params, and for the inputs the call
-    /// binds. Called at compile time, and again by the crate at `init`.
+    /// binds with what the compiler knows of their streams: how many, and at
+    /// what rate. Called at compile time, and again by the crate at `init`
+    /// with the same hints, so both calls see the same `bound`.
     fn shape(params: &Self::Params, bound: &Bound) -> Result<Shape>;
 
     /// Opens an instance on the streams bound to its inputs.
@@ -179,6 +181,7 @@ pub struct Runner<N: Node> {
     params: Value,
     ports: BTreeMap<u32, String>,
     state: Vec<(String, u32)>,
+    timing: BTreeSet<u32>,
     out: Out,
 }
 
@@ -200,11 +203,12 @@ impl<N: Node> Runner<N> {
         params::read(N::PARAMS_SCHEMA, params)
     }
 
-    /// The shape for `params` and the inputs `bound` names, as the host is
-    /// handed it.
-    pub fn shape(params: &str, bound: &[String]) -> Result<Shape, String> {
+    /// The shape for `params` and the inputs `bound` binds, as the host is
+    /// handed it. `bound` is a [`Bound`], or the names of the inputs bound as
+    /// 0.1 took them (`&["v".to_owned()]`), one stream each at a rate unknown.
+    pub fn shape(params: &str, bound: impl Into<Bound>) -> Result<Shape, String> {
         let (params, _) = Self::read(params)?;
-        let bound = Bound(bound.to_vec());
+        let bound = bound.into();
         N::shape(&params, &bound)?.resolve(&bound)
     }
 
@@ -215,17 +219,20 @@ impl<N: Node> Runner<N> {
         params: &str,
     ) -> Result<Runner<N>, String> {
         let (parsed, value) = Self::read(params)?;
-        let mut names: Vec<String> = Vec::new();
-        for stream in &bound {
-            if !names.contains(&stream.port) {
-                names.push(stream.port.clone());
-            }
-        }
-        let names = Bound(names);
-        let shape = N::shape(&parsed, &names)?.resolve(&names)?;
-        let ports = bound
+        let hints = Bound::of(&bound);
+        let shape = N::shape(&parsed, &hints)?.resolve(&hints)?;
+        let ports: BTreeMap<u32, String> = bound
             .iter()
             .map(|stream| (stream.id, stream.port.clone()))
+            .collect();
+        let timing: BTreeMap<u32, String> = ports
+            .iter()
+            .filter(|(_, port)| {
+                shape
+                    .find_input(port)
+                    .is_some_and(|input| input.accepts.wants == Wants::Timing)
+            })
+            .map(|(id, port)| (*id, port.clone()))
             .collect();
         let state = bound
             .iter()
@@ -244,13 +251,14 @@ impl<N: Node> Runner<N> {
                 shape: &shape,
             },
         )?;
-        let out = Out::new(&shape);
+        let out = Out::new(&shape).timing(timing.clone());
         Ok(Runner {
             node,
             shape,
             params: value,
             ports,
             state,
+            timing: timing.into_keys().collect(),
             out,
         })
     }
@@ -269,10 +277,19 @@ impl<N: Node> Runner<N> {
 
     pub(crate) fn process_source(&mut self, source: &dyn Source) -> Result<Emitted, String> {
         self.out.take();
-        let tick = Tick::new(source, &self.ports);
+        let tick = Tick::new(source, &self.ports, &self.timing);
         self.out.begin(tick.time_base());
         fold(&mut self.node, &self.state, &tick)?;
-        self.node.process(&tick, &mut self.out)?;
+        let processed = self.node.process(&tick, &mut self.out);
+        if let Some(id) = tick.refused() {
+            return Err(format!(
+                "{} fetched a frame of `{}`, which it reads for its timing alone: the host \
+                 carries none of its bytes",
+                N::NAME,
+                tick.port(id)
+            ));
+        }
+        processed?;
         Ok(self.out.take())
     }
 

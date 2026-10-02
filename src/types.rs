@@ -130,6 +130,15 @@ pub enum Format {
     Packets(CodedStream),
 }
 
+/// What the compiler knows of one stream a call binds, before the run.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StreamHint {
+    /// Video: the frame rate. Audio: the sample rate over 1. None where
+    /// nothing settles it before the run: a self-clocked source's output, a
+    /// feed by port.
+    pub rate: Option<Rational>,
+}
+
 /// One stream bound to an input port at `init`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoundStream {
@@ -142,6 +151,8 @@ pub struct BoundStream {
     pub row: Option<u32>,
     pub decode_delay: u32,
     pub latency: Option<f64>,
+    /// The hint `shape` was asked with for this stream.
+    pub hint: StreamHint,
 }
 
 impl BoundStream {
@@ -156,7 +167,15 @@ impl BoundStream {
             row: None,
             decode_delay: 0,
             latency: None,
+            hint: StreamHint::default(),
         }
+    }
+
+    /// The stream at `rate`, as the compiler told `shape`: a video stream's
+    /// frame rate.
+    pub fn rate(mut self, rate: Rational) -> BoundStream {
+        self.hint.rate = Some(rate);
+        self
     }
 
     /// A video stream of `width` x `height` in `pix_fmt`.
@@ -180,7 +199,7 @@ impl BoundStream {
     }
 
     /// An audio stream at `sample_rate` with `channels` interleaved, in
-    /// `sample_fmt`, counted in samples.
+    /// `sample_fmt`, counted in samples, its hint at that rate.
     pub fn audio(
         port: &str,
         id: u32,
@@ -188,7 +207,8 @@ impl BoundStream {
         channels: u32,
         sample_fmt: &str,
     ) -> BoundStream {
-        let mut stream = BoundStream::new(port, id, Rational::new(1, sample_rate as i32));
+        let mut stream = BoundStream::new(port, id, Rational::new(1, sample_rate as i32))
+            .rate(Rational::new(sample_rate as i32, 1));
         stream.info.kind = "audio".to_owned();
         stream.format = Some(Format::Audio(AudioFormat {
             sample_rate,
@@ -280,6 +300,10 @@ pub struct FeedStart {
     pub first_pts: i64,
     /// The clock time that first frame stands at, in the clock's time base.
     pub at: i64,
+    /// The clock time of the tick the start was fixed on: seconds before
+    /// `at` for a timed source, `at` itself when fixed on the tick it
+    /// showed. What a countdown counts from.
+    pub known: i64,
 }
 
 /// A hold input's current source, from the tick its first frame shows on to

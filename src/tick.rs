@@ -1,4 +1,5 @@
-use std::collections::BTreeMap;
+use std::cell::Cell;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::de::DeserializeOwned;
 
@@ -9,11 +10,13 @@ use crate::Rational;
 /// [`mock::Tick`](crate::mock::Tick) in a test.
 pub(crate) trait Source {
     fn pts(&self) -> i64;
+    fn ordinal(&self) -> u64;
     fn time_base(&self) -> Rational;
     fn last(&self) -> bool;
     fn streams(&self, port: &str) -> Vec<u32>;
     fn info(&self, id: u32) -> StreamInfo;
     fn feed(&self, id: u32) -> Option<Feed>;
+    fn ended_feeds(&self, id: u32) -> Vec<Feed>;
     fn frames(&self, id: u32) -> Vec<Frame>;
     fn fetch(&self, id: u32, index: u32) -> Vec<u8>;
     fn messages(&self, id: u32) -> Vec<Message>;
@@ -27,11 +30,27 @@ pub(crate) trait Source {
 pub struct Tick<'a> {
     source: &'a dyn Source,
     ports: &'a BTreeMap<u32, String>,
+    timing: &'a BTreeSet<u32>,
+    refused: Cell<Option<u32>>,
 }
 
 impl<'a> Tick<'a> {
-    pub(crate) fn new(source: &'a dyn Source, ports: &'a BTreeMap<u32, String>) -> Tick<'a> {
-        Tick { source, ports }
+    pub(crate) fn new(
+        source: &'a dyn Source,
+        ports: &'a BTreeMap<u32, String>,
+        timing: &'a BTreeSet<u32>,
+    ) -> Tick<'a> {
+        Tick {
+            source,
+            ports,
+            timing,
+            refused: Cell::new(None),
+        }
+    }
+
+    /// The stream read for its timing alone that this call tried to fetch.
+    pub(crate) fn refused(&self) -> Option<u32> {
+        self.refused.get()
     }
 
     /// The tick's time in [`Tick::time_base`]: an input clock's first frame
@@ -39,6 +58,14 @@ impl<'a> Tick<'a> {
     /// microseconds since its first call.
     pub fn pts(&self) -> i64 {
         self.source.pts()
+    }
+
+    /// The tick's number in the run, from 0, counted over every instance of
+    /// the node: on a frame clock the clock stream's frame number from the
+    /// run's first, strides counted as one; on a rate clock `pts`. A node
+    /// that numbers things by frame counts with it and stays pure.
+    pub fn ordinal(&self) -> u64 {
+        self.source.ordinal()
     }
 
     /// The clock input's time base, the inverse of a rate clock's rate, or
@@ -78,6 +105,16 @@ impl<'a> Tick<'a> {
         self.source.feed(id)
     }
 
+    /// A hold input's feeds that ended since this instance's previous call,
+    /// every one before on its first call, oldest first, each with `ends` set
+    /// to the last tick it showed on: the ends `feed` never foretold (a
+    /// timeout, a clock jump, a close with nothing queued) as well as the
+    /// ones it did. With [`FeedStart::known`](crate::FeedStart::known), what
+    /// a presence row needs on any worker. Empty on every other input.
+    pub fn ended_feeds(&self, id: u32) -> Vec<Feed> {
+        self.source.ended_feeds(id)
+    }
+
     /// The frames this tick hands on stream `id`, oldest first.
     pub fn frames(&self, id: u32) -> Vec<Frame> {
         self.source.frames(id)
@@ -90,8 +127,16 @@ impl<'a> Tick<'a> {
     }
 
     /// Frame `index`'s bytes, copied on demand: pixels tightly packed, or
-    /// interleaved samples.
+    /// interleaved samples. An input read for its timing alone has none: the
+    /// call gets nothing back, and ends the run with the port named once it
+    /// returns, where the host would fault.
     pub fn fetch(&self, id: u32, index: u32) -> Vec<u8> {
+        if self.timing.contains(&id) {
+            if self.refused.get().is_none() {
+                self.refused.set(Some(id));
+            }
+            return Vec::new();
+        }
         self.source.fetch(id, index)
     }
 

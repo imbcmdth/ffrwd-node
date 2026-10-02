@@ -35,6 +35,20 @@ impl Rational {
         (seconds * self.den as f64 / self.num as f64).round() as i64
     }
 
+    /// At this rate, the frames or samples `seconds` takes, a part counted
+    /// whole: what a window or a latency known in seconds spans. 2 s at
+    /// 48000/1 is 96000, and 1 s at 30000/1001 is 30.
+    pub fn count(self, seconds: f64) -> u64 {
+        let exact = seconds * self.num as f64 / self.den as f64;
+        (exact - 1e-9).ceil().max(0.0) as u64
+    }
+
+    /// At this rate, how long `count` frames or samples last, in seconds:
+    /// one frame at 30000/1001 is 1001/30000 s.
+    pub fn duration(self, count: u64) -> f64 {
+        count as f64 * self.den as f64 / self.num as f64
+    }
+
     /// `pts` in this time base, counted in `to` instead: exact, rounded to the
     /// nearest unit and away from zero on a tie, as ffmpeg's `av_rescale_q`.
     pub fn rescale(self, pts: i64, to: Rational) -> i64 {
@@ -118,6 +132,19 @@ mod tests {
     fn a_rate_is_a_time_base_inverted() {
         assert_eq!(Rational::new(30, 1).inverse(), Rational::new(1, 30));
         assert_eq!(Rational::new(30000, 1001).inverse().seconds(30), 1.001);
+    }
+
+    #[test]
+    fn seconds_count_frames_and_samples_at_a_rate() {
+        assert_eq!(Rational::new(48000, 1).count(2.0), 96000);
+        assert_eq!(Rational::new(16000, 1).count(30.0), 480000);
+        assert_eq!(Rational::new(30000, 1001).count(1.0), 30);
+        assert_eq!(Rational::new(30, 1).count(0.1), 3);
+        assert_eq!(Rational::new(25, 1).count(0.0), 0);
+        assert_eq!(Rational::new(30000, 1001).duration(1), 1001.0 / 30000.0);
+        assert_eq!(Rational::new(2, 1).duration(1), 0.5);
+        let ntsc = Rational::new(30000, 1001);
+        assert_eq!(ntsc.count(ntsc.duration(300)), 300);
     }
 
     #[test]

@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::node::{Node, Runner};
 use crate::out::Emitted;
-use crate::shape::{Clock, Shape};
+use crate::shape::{Bound, Clock, Shape};
 use crate::tick::Source;
 use crate::types::{BoundStream, Feed, Frame, Message, Packet, StreamInfo, TimedRows};
 use crate::Rational;
@@ -17,6 +17,7 @@ use crate::Rational;
 #[derive(Clone, Debug)]
 pub struct Tick {
     pts: i64,
+    ordinal: u64,
     time_base: Rational,
     last: bool,
     streams: Vec<(String, u32)>,
@@ -25,14 +26,17 @@ pub struct Tick {
     messages: BTreeMap<u32, Vec<Message>>,
     packets: BTreeMap<u32, Vec<Packet>>,
     feeds: BTreeMap<u32, Feed>,
+    ended: BTreeMap<u32, Vec<Feed>>,
     earlier: BTreeMap<u32, Vec<TimedRows>>,
 }
 
 impl Tick {
-    /// A tick at `pts` of a clock counted in `time_base`, with no streams.
+    /// A tick at `pts` of a clock counted in `time_base`, with no streams,
+    /// the run's first.
     pub fn new(pts: i64, time_base: Rational) -> Tick {
         Tick {
             pts,
+            ordinal: 0,
             time_base,
             last: false,
             streams: Vec::new(),
@@ -41,8 +45,16 @@ impl Tick {
             messages: BTreeMap::new(),
             packets: BTreeMap::new(),
             feeds: BTreeMap::new(),
+            ended: BTreeMap::new(),
             earlier: BTreeMap::new(),
         }
+    }
+
+    /// The tick's number in the run: what a worker handed every other tick
+    /// sees on its own.
+    pub fn ordinal(mut self, ordinal: u64) -> Tick {
+        self.ordinal = ordinal;
+        self
     }
 
     /// `stream` bound on its port.
@@ -110,6 +122,13 @@ impl Tick {
         self
     }
 
+    /// A feed of hold input `id` that ended since the instance's previous
+    /// call, after the ones already there.
+    pub fn ended(mut self, id: u32, feed: Feed) -> Tick {
+        self.ended.entry(id).or_default().push(feed);
+        self
+    }
+
     /// Rows a state input received on a tick this instance did not process.
     pub fn earlier(mut self, id: u32, pts: i64, rows: &[&str]) -> Tick {
         self.earlier.entry(id).or_default().push(TimedRows {
@@ -130,6 +149,10 @@ impl Tick {
 impl Source for Tick {
     fn pts(&self) -> i64 {
         self.pts
+    }
+
+    fn ordinal(&self) -> u64 {
+        self.ordinal
     }
 
     fn time_base(&self) -> Rational {
@@ -156,6 +179,11 @@ impl Source for Tick {
     fn feed(&self, id: u32) -> Option<Feed> {
         self.known(id);
         self.feeds.get(&id).cloned()
+    }
+
+    fn ended_feeds(&self, id: u32) -> Vec<Feed> {
+        self.known(id);
+        self.ended.get(&id).cloned().unwrap_or_default()
     }
 
     fn frames(&self, id: u32) -> Vec<Frame> {
@@ -193,18 +221,19 @@ impl Source for Tick {
 
 /// A node opened on the host: `shape` and `init` as the host calls them,
 /// every output latched, and ticks that come with the bound streams in
-/// place.
+/// place, numbered from 0 on.
 pub struct Harness<N: Node> {
     runner: Runner<N>,
     bound: Vec<BoundStream>,
     clock: Option<Rational>,
+    next: u64,
 }
 
 impl<N: Node> Harness<N> {
-    /// Opens `N` with `params` on `bound`.
+    /// Opens `N` with `params` on `bound`, shaped with each stream's hint
+    /// as the compiler and `init` both shape it.
     pub fn new(params: &str, bound: Vec<BoundStream>) -> Result<Harness<N>, String> {
-        let names: Vec<String> = bound.iter().map(|stream| stream.port.clone()).collect();
-        let shape = Runner::<N>::shape(params, &names)?;
+        let shape = Runner::<N>::shape(params, Bound::of(&bound))?;
         let latched = shape
             .outputs
             .iter()
@@ -224,6 +253,7 @@ impl<N: Node> Harness<N> {
             runner,
             bound,
             clock,
+            next: 0,
         })
     }
 
@@ -234,18 +264,21 @@ impl<N: Node> Harness<N> {
         self
     }
 
-    /// A tick at `pts` on the clock, every bound stream in place.
+    /// A tick at `pts` on the clock, every bound stream in place, numbered
+    /// one past the last this harness processed.
     pub fn tick(&self, pts: i64) -> Tick {
         let time_base = self
             .clock
             .expect("the clock's time base is the rate of an input; give it with `clock`");
-        self.bound
-            .iter()
-            .fold(Tick::new(pts, time_base), |tick, stream| tick.bind(stream))
+        self.bound.iter().fold(
+            Tick::new(pts, time_base).ordinal(self.next),
+            |tick, stream| tick.bind(stream),
+        )
     }
 
     /// One `process` call.
     pub fn process(&mut self, tick: &Tick) -> Result<Emitted, String> {
+        self.next = tick.ordinal + 1;
         self.runner.process_source(tick)
     }
 
@@ -257,6 +290,7 @@ impl<N: Node> Harness<N> {
         self.runner.node()
     }
 
+    /// The instance's shape, as the crate resolved it at `init`.
     pub fn shape(&self) -> &Shape {
         self.runner.resolved()
     }

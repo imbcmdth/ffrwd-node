@@ -1,6 +1,6 @@
 //! Write an ffrwd node module in Rust: implement [`Node`] for a type, hand it
 //! to [`export!`], and build for `wasm32-wasip2`. The crate carries the
-//! `ffrwd:av@0.19.0` bindings and does what every module would otherwise
+//! `ffrwd:av@0.19.1` bindings and does what every module would otherwise
 //! write for itself: the call sequence, params read against their schema,
 //! shapes from builders, time in any time base, state rows folded,
 //! emissions checked to never go back, and errors as the run's message.
@@ -28,14 +28,15 @@ pub use out::{Emission, Emitted, Out, Payload};
 pub use params::{read as read_params, NoParams, NO_PARAMS};
 pub use rows::{parse, schema_of, Cue, Cues, Span, Spans};
 pub use shape::{
-    Accepts, Anchor, Bound, Clock, Hold, Input, Interval, Kind, Like, Output, Pairing, RowsUse,
-    Shape, Wants,
+    Accepts, Anchor, Binding, Bound, Clock, Hold, Input, Interval, Kind, Like, Output, Pairing,
+    RowsUse, Shape, Wants,
 };
 pub use tick::Tick;
 pub use time::Rational;
 pub use types::{
     AudioFormat, BoundStream, CodedAudio, CodedFormat, CodedStream, CodedVideo, ColorInfo, Feed,
-    FeedStart, Format, Frame, Message, Packet, RenditionMeta, StreamInfo, TimedRows, VideoFormat,
+    FeedStart, Format, Frame, Message, Packet, RenditionMeta, StreamHint, StreamInfo, TimedRows,
+    VideoFormat,
 };
 
 /// Exports `$node`, a type implementing [`Node`], as the module's `node`.

@@ -30,6 +30,6 @@ fn the_wit_is_the_one_ffrwd_wit_dir_names() {
 #[test]
 fn the_wit_is_the_node_world() {
     let wit = text(&ours());
-    assert!(wit.lines().any(|line| line == "package ffrwd:av@0.19.0;"));
+    assert!(wit.lines().any(|line| line == "package ffrwd:av@0.19.1;"));
     assert!(wit.contains("world node-module {"));
 }

@@ -5,7 +5,7 @@
 use serde::Serialize;
 
 use crate::rows::schema_of;
-use crate::types::{AudioFormat, CodedStream, Format, VideoFormat};
+use crate::types::{AudioFormat, BoundStream, CodedStream, Format, StreamHint, VideoFormat};
 use crate::Rational;
 
 /// What a port carries.
@@ -35,13 +35,17 @@ pub enum RowsUse {
     State,
 }
 
-/// How a hold input's offset between source time and clock time is fixed.
+/// What maps a stream's pts onto the clock: a hold input's, or a data input's
+/// paired by interval.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Anchor {
-    /// The source's pts are on the clock's epoch: a timed feeder.
+    /// The source's pts are on the clock's epoch: a timed feeder, or a
+    /// lateral's rows.
     SharedClock,
-    /// Scheduled `lead` seconds ahead of the clock once the host holds that
-    /// much of the source: an untimed feeder.
+    /// Held: scheduled `lead` seconds ahead of the clock once the host holds
+    /// that much of the source, as for an untimed feeder. By interval: the
+    /// first message is placed at the tick it arrives on, and every later
+    /// one keeps that offset, as for a data stream on another time origin.
     FirstFrame,
     /// `SharedClock` for a feed whose tags carry this name set to 1,
     /// `FirstFrame` otherwise.
@@ -61,10 +65,27 @@ pub struct Hold {
 
 /// A message input paired by time: every message stamped in the tick's
 /// interval, `ahead` seconds past it included.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Interval {
     pub latency: Option<f64>,
     pub ahead: f64,
+    pub anchor: Anchor,
+    /// The hold group whose connection the stream arrives on, with that
+    /// group's offset; its anchor is then `SharedClock`.
+    pub group: Option<String>,
+}
+
+impl Default for Interval {
+    /// No bound on the wait, nothing ahead, on the clock's origin, in no
+    /// group.
+    fn default() -> Interval {
+        Interval {
+            latency: None,
+            ahead: 0.0,
+            anchor: Anchor::SharedClock,
+            group: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,13 +98,18 @@ pub enum Pairing {
     Arrival,
 }
 
-/// How much of a stream a packets input needs.
+/// How much of a stream an input needs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Wants {
     #[default]
     All,
+    /// Packets: keyframes alone.
     Keyframes,
+    /// Packets: the first of each stream.
     First,
+    /// Frames: their times and the stream's info, never their bytes. See
+    /// [`Input::timing`].
+    Timing,
 }
 
 /// What an input accepts; an empty list accepts anything of the kind.
@@ -217,8 +243,25 @@ impl Input {
         self
     }
 
-    pub fn anchor(self, anchor: Anchor) -> Input {
-        self.held(|hold| hold.anchor = anchor)
+    /// Paired in time as it already is, or as its kind is: held for frames,
+    /// by interval for messages.
+    fn timed(self) -> Input {
+        match (&self.pairing, self.kind.frames()) {
+            (Pairing::Hold(_) | Pairing::Interval(_), _) => self,
+            (_, true) => self.hold(),
+            (_, false) => self.interval(),
+        }
+    }
+
+    /// What maps the stream's pts onto the clock, held or by interval.
+    pub fn anchor(mut self, anchor: Anchor) -> Input {
+        self = self.timed();
+        match &mut self.pairing {
+            Pairing::Hold(hold) => hold.anchor = anchor,
+            Pairing::Interval(interval) => interval.anchor = anchor,
+            _ => {}
+        }
+        self
     }
 
     pub fn lead(self, seconds: f64) -> Input {
@@ -233,8 +276,17 @@ impl Input {
         self.held(|hold| hold.timeout = Some(seconds))
     }
 
-    pub fn group(self, group: &str) -> Input {
-        self.held(|hold| hold.group = Some(group.to_owned()))
+    /// A hold group: held inputs of one group arrive on one connection from
+    /// one source, with one offset. A data input naming a hold group arrives
+    /// on that connection, paired by interval.
+    pub fn group(mut self, group: &str) -> Input {
+        self = self.timed();
+        match &mut self.pairing {
+            Pairing::Hold(hold) => hold.group = Some(group.to_owned()),
+            Pairing::Interval(interval) => interval.group = Some(group.to_owned()),
+            _ => {}
+        }
+        self
     }
 
     /// The param the host writes this input's loopback port into, or reads
@@ -314,6 +366,15 @@ impl Input {
     pub fn wants(mut self, wants: Wants) -> Input {
         self.accepts.wants = wants;
         self
+    }
+
+    /// Read for its frames' times and its stream's info alone: the compiler
+    /// hands the stream in whatever format its source has cheapest, and the
+    /// host carries no pixels or samples for it. A mask sized and timed by a
+    /// picture it never reads. [`Tick::fetch`](crate::Tick::fetch) on it, or
+    /// passing one of its frames on, is refused.
+    pub fn timing(self) -> Input {
+        self.wants(Wants::Timing)
     }
 
     /// Conformed to input `port`'s size (video), or rate and layout (audio).
@@ -782,6 +843,33 @@ impl Shape {
             if input.kind == Kind::Data && input.rows == RowsUse::Ignore {
                 return Err(format!("`{name}` carries rows, so it cannot ignore them"));
             }
+            if input.accepts.wants == Wants::Timing && !input.kind.frames() {
+                return Err(format!(
+                    "`{name}` carries no frames, so it cannot be read for its timing alone"
+                ));
+            }
+            if let Pairing::Interval(Interval {
+                anchor,
+                group: Some(group),
+                ..
+            }) = &input.pairing
+            {
+                let held = self.inputs.iter().any(|other| match &other.pairing {
+                    Pairing::Hold(hold) => hold.group.as_ref() == Some(group),
+                    _ => false,
+                });
+                if !held {
+                    return Err(format!(
+                        "`{name}` arrives on hold group `{group}`, and no hold input is in it"
+                    ));
+                }
+                if *anchor != Anchor::SharedClock {
+                    return Err(format!(
+                        "`{name}` arrives on hold group `{group}`, whose first picture fixes \
+                         its offset, so its anchor is the shared clock"
+                    ));
+                }
+            }
             if input.stride == 0 || input.stride > input.window {
                 return Err(format!(
                     "`{name}` has a window of {} and a stride of {}: the stride runs from 1 to \
@@ -852,18 +940,140 @@ impl Shape {
     }
 }
 
-/// The inputs a call binds, by name.
+/// One input a call binds: its streams, in the order the call names them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Binding {
+    pub input: String,
+    pub streams: Vec<StreamHint>,
+}
+
+/// The inputs a call binds, each with what the compiler knows of its
+/// streams: how many a many port takes, and their rates.
+///
+/// At `init` the crate shapes the node again from the streams bound there,
+/// each carrying the hint the compiler's `shape` was asked with, so the
+/// instance's shape is the one the plan was made from.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Bound(pub Vec<String>);
+pub struct Bound {
+    inputs: Vec<Binding>,
+}
 
 impl Bound {
+    /// `names` bound, one stream each, at rates unknown.
     pub fn new(names: &[&str]) -> Bound {
-        Bound(strings(names))
+        names
+            .iter()
+            .fold(Bound::default(), |bound, name| bound.bind(name, &[None]))
+    }
+
+    /// The streams `init` binds, each with its hint, as the crate shapes the
+    /// node there.
+    pub fn of(streams: &[BoundStream]) -> Bound {
+        let mut bound = Bound::default();
+        for stream in streams {
+            let hint = stream.hint;
+            match bound.find_mut(&stream.port) {
+                Some(binding) => binding.streams.push(hint),
+                None => bound.inputs.push(Binding {
+                    input: stream.port.clone(),
+                    streams: vec![hint],
+                }),
+            }
+        }
+        bound
+    }
+
+    /// `port` bound to streams at these rates, none where unknown, in place
+    /// of whatever it was bound to.
+    pub fn bind(mut self, port: &str, rates: &[Option<Rational>]) -> Bound {
+        let streams = rates.iter().map(|&rate| StreamHint { rate }).collect();
+        match self.find_mut(port) {
+            Some(binding) => binding.streams = streams,
+            None => self.inputs.push(Binding {
+                input: port.to_owned(),
+                streams,
+            }),
+        }
+        self
+    }
+
+    /// Every stream of `port` at `rate`; one stream when it was not bound.
+    pub fn rate(mut self, port: &str, rate: Rational) -> Bound {
+        if !self.has(port) {
+            self = self.bind(port, &[None]);
+        }
+        if let Some(binding) = self.find_mut(port) {
+            for hint in &mut binding.streams {
+                hint.rate = Some(rate);
+            }
+        }
+        self
+    }
+
+    fn find_mut(&mut self, port: &str) -> Option<&mut Binding> {
+        self.inputs.iter_mut().find(|binding| binding.input == port)
+    }
+
+    /// Every input the call binds, in its order.
+    pub fn inputs(&self) -> &[Binding] {
+        &self.inputs
     }
 
     /// Whether the call binds input `port`.
     pub fn has(&self, port: &str) -> bool {
-        self.0.iter().any(|name| name == port)
+        self.inputs.iter().any(|binding| binding.input == port)
+    }
+
+    /// The streams bound to `port`; none when the call leaves it out.
+    pub fn streams(&self, port: &str) -> &[StreamHint] {
+        self.inputs
+            .iter()
+            .find(|binding| binding.input == port)
+            .map_or(&[], |binding| binding.streams.as_slice())
+    }
+
+    /// How many streams the call binds to `port`.
+    pub fn count(&self, port: &str) -> usize {
+        self.streams(port).len()
+    }
+
+    /// The rate of `port`'s first stream, the only one of a single port: the
+    /// clock's, when `port` is the clock input or a `rate_of` clock's.
+    pub fn rate_of(&self, port: &str) -> Option<Rational> {
+        self.streams(port).first().and_then(|hint| hint.rate)
+    }
+}
+
+impl From<Vec<Binding>> for Bound {
+    fn from(inputs: Vec<Binding>) -> Bound {
+        Bound { inputs }
+    }
+}
+
+impl From<&Bound> for Bound {
+    fn from(bound: &Bound) -> Bound {
+        bound.clone()
+    }
+}
+
+/// Inputs by name alone, as 0.1 named them: one stream each, rates unknown.
+impl From<&[String]> for Bound {
+    fn from(names: &[String]) -> Bound {
+        names
+            .iter()
+            .fold(Bound::default(), |bound, name| bound.bind(name, &[None]))
+    }
+}
+
+impl From<&Vec<String>> for Bound {
+    fn from(names: &Vec<String>) -> Bound {
+        Bound::from(names.as_slice())
+    }
+}
+
+impl<const N: usize> From<&[String; N]> for Bound {
+    fn from(names: &[String; N]) -> Bound {
+        Bound::from(names.as_slice())
     }
 }
 
@@ -1003,9 +1213,131 @@ mod tests {
             words.pairing,
             Pairing::Interval(Interval {
                 latency: Some(2.0),
-                ahead: 0.5
+                ahead: 0.5,
+                ..Interval::default()
             })
         );
         assert_eq!(words.rows, RowsUse::State);
+    }
+
+    #[test]
+    fn a_timing_input_is_a_frame_kind() {
+        let mask = Shape::new()
+            .input(Input::video("v").clock().timing())
+            .output(Output::video("mask").pixel_format("gray"));
+        let shape = mask.resolve(&Bound::new(&["v"])).unwrap();
+        assert_eq!(shape.inputs[0].accepts.wants, Wants::Timing);
+
+        let sound = Shape::new()
+            .input(Input::audio("a").clock())
+            .input(Input::audio("b").timing().like("a"));
+        assert!(sound.resolve(&Bound::new(&["a", "b"])).is_ok());
+
+        let rows = filter().input(Input::rows("boxes").interval().timing());
+        let err = rows.resolve(&Bound::new(&["v", "boxes"])).unwrap_err();
+        assert!(err.contains("`boxes`") && err.contains("timing"), "{err}");
+    }
+
+    #[test]
+    fn a_data_input_takes_an_anchor_and_a_hold_group() {
+        let follow = Input::rows("d").anchor(Anchor::FirstFrame);
+        assert_eq!(
+            follow.pairing,
+            Pairing::Interval(Interval {
+                anchor: Anchor::FirstFrame,
+                ..Interval::default()
+            })
+        );
+        let feed = Input::video("feed").optional().group("ad");
+        assert!(
+            matches!(&feed.pairing, Pairing::Hold(hold) if hold.group.as_deref() == Some("ad"))
+        );
+
+        let beside = Input::rows("cues").latency(1.0).group("ad");
+        let Pairing::Interval(interval) = &beside.pairing else {
+            panic!("not by interval")
+        };
+        assert_eq!(interval.group.as_deref(), Some("ad"));
+        assert_eq!(interval.latency, Some(1.0));
+        assert_eq!(interval.anchor, Anchor::SharedClock);
+
+        let bound = Bound::new(&["v", "feed", "cues"]);
+        let grouped = filter().input(feed.clone()).input(beside.clone());
+        assert!(grouped.resolve(&bound).is_ok());
+
+        let no_group = filter()
+            .input(Input::video("feed").optional().hold())
+            .input(beside.clone());
+        let err = no_group.resolve(&bound).unwrap_err();
+        assert!(err.contains("`cues`") && err.contains("`ad`"), "{err}");
+
+        let anchored = filter()
+            .input(feed)
+            .input(beside.anchor(Anchor::Tagged("smart_timed".to_owned())));
+        let err = anchored.resolve(&bound).unwrap_err();
+        assert!(
+            err.contains("`cues`") && err.contains("shared clock"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_held_frame_input_keeps_its_anchor_and_group() {
+        let feed = Input::video("feed")
+            .anchor(Anchor::Tagged("smart_timed".to_owned()))
+            .group("ad");
+        let Pairing::Hold(hold) = feed.pairing else {
+            panic!("not held")
+        };
+        assert_eq!(hold.anchor, Anchor::Tagged("smart_timed".to_owned()));
+        assert_eq!(hold.group.as_deref(), Some("ad"));
+    }
+
+    #[test]
+    fn bound_says_how_many_streams_and_at_what_rate() {
+        let bound = Bound::new(&["v"])
+            .rate("v", Rational::new(30000, 1001))
+            .bind("inputs", &[Some(Rational::new(25, 1)), None]);
+        assert!(bound.has("v") && bound.has("inputs") && !bound.has("a"));
+        assert_eq!(bound.count("v"), 1);
+        assert_eq!(bound.count("inputs"), 2);
+        assert_eq!(bound.count("a"), 0);
+        assert_eq!(bound.rate_of("v"), Some(Rational::new(30000, 1001)));
+        assert_eq!(bound.rate_of("inputs"), Some(Rational::new(25, 1)));
+        assert_eq!(bound.streams("inputs")[1].rate, None);
+        assert_eq!(bound.rate_of("a"), None);
+        let names: Vec<&str> = bound.inputs().iter().map(|b| b.input.as_str()).collect();
+        assert_eq!(names, ["v", "inputs"]);
+
+        let unbound = Bound::default().rate("a", Rational::new(48000, 1));
+        assert_eq!(unbound.count("a"), 1);
+
+        let by_name = Bound::from(&["v".to_owned(), "a".to_owned()]);
+        assert_eq!(by_name, Bound::new(&["v", "a"]));
+        assert_eq!(by_name.rate_of("v"), None);
+    }
+
+    #[test]
+    fn bound_streams_carry_the_hints_the_shape_was_asked_with() {
+        let tb = Rational::new(1, 15360);
+        let streams = [
+            BoundStream::video("v", 0, 2, 2, "rgba", tb).rate(Rational::new(30000, 1001)),
+            BoundStream::audio("a", 1, 48000, 2, "f32"),
+            BoundStream::video("inputs", 2, 2, 2, "rgba", tb).rate(Rational::new(25, 1)),
+            BoundStream::video("inputs", 3, 2, 2, "rgba", tb),
+            BoundStream::rows("d", 4, tb),
+        ];
+        let bound = Bound::of(&streams);
+        assert_eq!(bound.rate_of("v"), Some(Rational::new(30000, 1001)));
+        assert_eq!(bound.rate_of("a"), Some(Rational::new(48000, 1)));
+        assert_eq!(bound.count("inputs"), 2);
+        assert_eq!(bound.streams("inputs")[1].rate, None);
+        assert_eq!(bound.rate_of("d"), None);
+        let asked = Bound::new(&["v", "a"])
+            .rate("v", Rational::new(30000, 1001))
+            .rate("a", Rational::new(48000, 1))
+            .bind("inputs", &[Some(Rational::new(25, 1)), None])
+            .bind("d", &[None]);
+        assert_eq!(bound, asked);
     }
 }
