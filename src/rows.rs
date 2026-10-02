@@ -123,14 +123,19 @@ impl Cues {
     }
 }
 
-/// One span a key is seen across, named by when it started.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// One span a key is seen across, named by when it started and by its
+/// number. A row type that flattens it (`#[serde(flatten)] span: Span`)
+/// carries both as `start_t` and `id`, which is how a reader of the rows
+/// tells apart two spans that start on one tick.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Span {
-    /// The seconds of the tick it was first seen on: its id in the rows.
+    /// The seconds of the tick it was first seen on: `start_t` in the rows.
     pub start_t: f64,
-    /// How many spans began before this one.
+    /// How many spans began before this one: `id` in the rows.
+    #[serde(rename = "id")]
     pub number: u64,
     /// How many ticks old it is: 0 on the tick it starts.
+    #[serde(skip)]
     pub age: u64,
 }
 
@@ -340,6 +345,41 @@ mod tests {
         spans.see("b");
         spans.tick(3.0);
         assert_eq!(spans.open(), 1);
+    }
+
+    #[derive(Default, Serialize)]
+    struct Sighting {
+        #[serde(flatten)]
+        span: Span,
+        label: String,
+    }
+
+    #[test]
+    fn spans_starting_on_one_tick_write_one_start_t_and_their_own_ids() {
+        let mut spans = Spans::new();
+        spans.tick(2.5);
+        let rows: Vec<Value> = ["a", "b"]
+            .into_iter()
+            .map(|key| {
+                let row = Sighting {
+                    span: spans.see(key),
+                    label: key.into(),
+                };
+                serde_json::to_value(row).unwrap()
+            })
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                serde_json::json!({"start_t": 2.5, "id": 0, "label": "a"}),
+                serde_json::json!({"start_t": 2.5, "id": 1, "label": "b"}),
+            ]
+        );
+        let schema: Value = serde_json::from_str(&schema_of::<Sighting>()).unwrap();
+        assert_eq!(schema["properties"]["start_t"]["type"], "number");
+        assert_eq!(schema["properties"]["id"]["type"], "integer");
+        let span: Span = parse(r#"{"start_t":2.5,"id":1,"label":"b"}"#).unwrap();
+        assert_eq!((span.start_t, span.number), (2.5, 1));
     }
 
     #[test]

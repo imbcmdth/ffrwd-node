@@ -87,8 +87,10 @@ the run's rows output, and `out.finish()` ends a generator.
 **Rows.** `tick.rows::<T>(id)` reads a data stream's messages, or the rows
 riding a frame stream, as `T`. `schema::<T>()` writes a row type's JSON schema
 from what `T::default()` serializes to, `integer` and `number` kept apart.
-`Spans` names per-tick rows by the `start_t` of the span they belong to, with
-a gap a span survives and a longest it may run; `Cue` is a query's `cue`, and
+`Spans` names per-tick rows by the span they belong to, with a gap a span
+survives and a longest it may run; a `Span` flattened into a row writes its
+`start_t` and its `id`, which `ffrwd.merge_spans` keys a span by, so two
+things first seen on one tick stay two spans; `Cue` is a query's `cue`, and
 `Cues` holds cues from the tick they arrive on until they end.
 
 **Errors.** `Result` carries an `Error` that anything displaying converts
@@ -103,7 +105,7 @@ sighting every `every` frames. The full module, with a stand-in for a real
 detector:
 
 ```rust
-use ffrwd_node::{Bound, Init, Input, Node, Out, Output, Result, Shape, Spans, Tick};
+use ffrwd_node::{Bound, Init, Input, Node, Out, Output, Result, Shape, Span, Spans, Tick};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -113,8 +115,8 @@ struct Params {
 
 #[derive(Default, Serialize)]
 struct Spot {
-    start_t: f64,
-    id: u64,
+    #[serde(flatten)]
+    span: Span,
     x: u32,
     y: u32,
     w: u32,
@@ -157,8 +159,7 @@ impl Node for SpotNode {
         let Some([x, y, w, h]) = grey(&tick.fetch(self.v, frame.index), self.width) else {
             return Ok(());
         };
-        let span = self.spans.see(());
-        let spot = Spot { start_t: span.start_t, id: span.number, x, y, w, h };
+        let spot = Spot { span: self.spans.see(()), x, y, w, h };
         Ok(out.row("spots", frame.pts, &spot)?)
     }
 }
