@@ -39,8 +39,9 @@ pub use types::{
 };
 
 /// Exports `$node`, a type implementing [`Node`], as the module's `node`.
-/// Once per module, at its crate root; on a target other than wasm32 it
-/// expands to nothing, so the module's tests build on the host.
+/// Once per module, at its crate root. On a target other than wasm32 there
+/// is nothing to export, and the node only counts as used, so the module's
+/// tests build on the host without warnings.
 #[macro_export]
 #[rustfmt::skip]
 macro_rules! export {
@@ -49,6 +50,10 @@ macro_rules! export {
         const _: () = {
             type FfrwdNode = $crate::__glue::Glue<$node>;
             $crate::__glue::bindings::export!(FfrwdNode with_types_in $crate::__glue::bindings);
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        const _: () = {
+            let _ = $crate::Runner::<$node>::init;
         };
     };
 }
