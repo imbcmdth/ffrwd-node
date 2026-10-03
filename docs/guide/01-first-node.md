@@ -22,7 +22,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-ffrwd-node = { path = "../../../../rust" }
+ffrwd-node = { git = "https://github.com/imbcmdth/ffrwd-node", tag = "v0.2.0" }
 ```
 
 **C++**
@@ -40,7 +40,7 @@ set -eu
 cd "$(dirname "$0")"
 sdk=${FFRWD_NODE:-../../../../../cpp}
 lib=${FFRWD_NODE_BUILD:-$sdk/build}
-wasi=${WASI_SDK:-C:/tools/wasi-sdk-34.0-x86_64-windows}
+wasi=${WASI_SDK:?set WASI_SDK to your wasi-sdk}
 cxx="$wasi/bin/clang++ --target=wasm32-wasip2 -std=c++23 -fno-exceptions -fno-rtti"
 mkdir -p build
 
@@ -61,7 +61,7 @@ $cxx -mexec-model=reactor -Wl,--gc-sections -Wl,--strip-all -o build/invert.wasm
     "build": "node build.js"
   },
   "dependencies": {
-    "@ffrwd/node": "file:../../../../../js"
+    "@ffrwd/node": "^0.2.0"
   },
   "devDependencies": {
     "@bytecodealliance/componentize-js": "0.22.0",
@@ -77,11 +77,9 @@ module invert
 
 go 1.25
 
-require github.com/imbcmdth/ffrwd-node/go v0.0.0
+require github.com/imbcmdth/ffrwd-node/go v0.2.0
 
 require go.bytecodealliance.org/pkg v0.2.2 // indirect
-
-replace github.com/imbcmdth/ffrwd-node/go => ../../../../../go
 ```
 
 ## The node
@@ -295,7 +293,8 @@ cargo build --target wasm32-wasip2 --release
 
 **C++**
 
-The module lands in `build/invert.wasm`:
+With `WASI_SDK` set to your wasi-sdk, the module lands in
+`build/invert.wasm`:
 
 ```
 sh build.sh

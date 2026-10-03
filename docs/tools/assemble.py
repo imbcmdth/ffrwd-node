@@ -22,6 +22,13 @@ template puts between, then one block; tabs in a row are one tabbed block,
 in the order Rust, C++, JavaScript, Go. Paths are relative to ../examples,
 a language's under its own directory; Rust's runs are in examples/out and a
 language's in examples/<lang>/out. Run after run.py.
+
+The examples build against the SDKs in this repository, by path. What a
+reader copies has to build against the published SDKs, so every line an
+example file pastes is spelled as PUBLISHED says: ffrwd-node from its git
+tag in a Cargo.toml, the Go module at its version with the replace line
+dropped, @ffrwd/node from npm in a package.json. check.py reads the
+examples through the same rule.
 """
 
 import json
@@ -44,13 +51,43 @@ LANGUAGES = {
 }
 SPAN = re.compile(r"\d+-\d+")
 
+# (a line as the example writes it, the line the guide shows, None to drop it)
+PUBLISHED = [
+    (
+        r'ffrwd-node = \{ path = "[^"]*" \}',
+        'ffrwd-node = { git = "https://github.com/imbcmdth/ffrwd-node", tag = "v0.2.0" }',
+    ),
+    (r"require github\.com/imbcmdth/ffrwd-node/go v0\.0\.0", "require github.com/imbcmdth/ffrwd-node/go v0.2.0"),
+    (r"replace github\.com/imbcmdth/ffrwd-node/go => .*", None),
+    (r'(\s*)"@ffrwd/node": "file:[^"]*"(,?)', r'\1"@ffrwd/node": "^0.2.0"\2'),
+]
+
+
+def published(lines):
+    out, dropped = [], False
+    for line in lines:
+        for pattern, spelled in PUBLISHED:
+            if re.fullmatch(pattern, line):
+                line = None if spelled is None else re.sub(pattern, spelled, line)
+                break
+        if line is None:
+            dropped = True
+            if out and out[-1] == "":
+                out.pop()
+            continue
+        if not (dropped and line == "" and out and out[-1] == ""):
+            out.append(line)
+        dropped = False
+    return out
+
 
 def lines_of(path, span=None):
     text = path.read_text(encoding="utf-8").rstrip("\n").split("\n")
     if not span:
-        return text
+        return text if "out" in path.relative_to(EXAMPLES).parts else published(text)
     first, last = (int(n) for n in span.split("-"))
-    return text[first - 1 : last]
+    text = text[first - 1 : last]
+    return text if "out" in path.relative_to(EXAMPLES).parts else published(text)
 
 
 def fenced(info, body):

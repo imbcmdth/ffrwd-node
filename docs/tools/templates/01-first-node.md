@@ -67,7 +67,8 @@ cargo build --target wasm32-wasip2 --release
 
 **C++**
 
-The module lands in `build/invert.wasm`:
+With `WASI_SDK` set to your wasi-sdk, the module lands in
+`build/invert.wasm`:
 
 ```
 sh build.sh

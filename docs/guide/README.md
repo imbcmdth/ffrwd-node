@@ -57,7 +57,8 @@ cargo build --target wasm32-wasip2 --release
 SDK](https://github.com/imbcmdth/ffrwd-node/tree/main/cpp), with
 [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases) 34 and
 [wit-bindgen](https://github.com/bytecodealliance/wit-bindgen/releases)
-0.57.1. The examples' crops and resizes are their own.
+0.57.1, `WASI_SDK` set to wasi-sdk's directory. The examples' crops and
+resizes are their own.
 
 ```
 sh build.sh modules    # in the SDK's cpp/, once

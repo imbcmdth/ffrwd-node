@@ -760,7 +760,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-ffrwd-node = { path = "../../../../rust" }
+ffrwd-node = { git = "https://github.com/imbcmdth/ffrwd-node", tag = "v0.2.0" }
 ffrwd-frame = { git = "https://github.com/imbcmdth/ffrwd-frame", tag = "v0.1.1" }
 serde = { version = "1", features = ["derive"] }
 
@@ -789,7 +789,7 @@ set -eu
 cd "$(dirname "$0")"
 sdk=${FFRWD_NODE:-../../../../../cpp}
 lib=${FFRWD_NODE_BUILD:-$sdk/build}
-wasi=${WASI_SDK:-C:/tools/wasi-sdk-34.0-x86_64-windows}
+wasi=${WASI_SDK:?set WASI_SDK to your wasi-sdk}
 cxx="$wasi/bin/clang++ --target=wasm32-wasip2 -std=c++23 -fno-exceptions -fno-rtti"
 mkdir -p build
 
@@ -819,7 +819,7 @@ Beside a `build.js` like chapter 1's:
     "test": "node --test"
   },
   "dependencies": {
-    "@ffrwd/node": "file:../../../../../js"
+    "@ffrwd/node": "^0.2.0"
   },
   "devDependencies": {
     "@bytecodealliance/componentize-js": "0.22.0",
@@ -837,11 +837,9 @@ module levels
 
 go 1.25
 
-require github.com/imbcmdth/ffrwd-node/go v0.0.0
+require github.com/imbcmdth/ffrwd-node/go v0.2.0
 
 require go.bytecodealliance.org/pkg v0.2.2 // indirect
-
-replace github.com/imbcmdth/ffrwd-node/go => ../../../../../go
 ```
 
 The export names the built module by its path from the package's root:

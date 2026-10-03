@@ -14,7 +14,7 @@ set -eu
 cd "$(dirname "$0")"
 sdk=${FFRWD_NODE:-../../../../../cpp}
 lib=${FFRWD_NODE_BUILD:-$sdk/build}
-wasi=${WASI_SDK:-C:/tools/wasi-sdk-34.0-x86_64-windows}
+wasi=${WASI_SDK:?set WASI_SDK to your wasi-sdk}
 cxx="$wasi/bin/clang++ --target=wasm32-wasip2 -std=c++23 -fno-exceptions -fno-rtti"
 mkdir -p build
 

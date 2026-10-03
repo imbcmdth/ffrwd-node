@@ -6,7 +6,8 @@ a manifest), every SQL block is a query `ffrwd compile` was run on, every
 command block is a recorded run's, and the prose carries no em dash and
 none of the forbidden words. An output shown once for every language is
 compared with each language's own record of it, and what differs is
-listed apart: it is a note for the owner, not a failure.
+listed apart: it is a note for the owner, not a failure. Example files
+are read as the guide spells them, by assemble.py's PUBLISHED rule.
 
     python check.py      after python run.py and python assemble.py
 """
@@ -17,6 +18,9 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from assemble import published  # noqa: E402
+
 DOCS = HERE.parent
 GUIDE = DOCS / "guide"
 EXAMPLES = DOCS / "examples"
@@ -50,7 +54,7 @@ def sources(language):
             if not path.is_file() or path.suffix not in TEXT or path.name == "blocks.json":
                 continue
             if not SKIP & set(path.relative_to(root).parts[:-1]):
-                found[path] = read(path)
+                found[path] = "\n".join(published(read(path).split("\n")))
     return found
 
 
