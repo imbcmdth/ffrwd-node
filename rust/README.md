@@ -248,10 +248,19 @@ serde = { version = "1", features = ["derive"] }
 cargo build --target wasm32-wasip2 --release
 ```
 
-The crate carries the world it speaks, `wit/av.wit`, which is
-`ffrwd:av@0.19.1` byte for byte, so a node module needs no `build.rs` and no
-wit of its own. With `FFRWD_WIT_DIR` set, `cargo test` here checks that copy
-against the `av.wit` it names.
+The bindings are generated from the repo's `wit/av.wit`, which is
+`ffrwd:av@0.19.1` byte for byte and the one copy every SDK here builds
+against, so a node module needs no `build.rs` and no wit of its own. With
+`FFRWD_WIT_DIR` set, `cargo test` here checks that copy against the `av.wit`
+it names.
+
+`examples/dim.rs` is the node every SDK in this repo ships as its example:
+
+```
+cargo test --example dim
+cargo build --target wasm32-wasip2 --release --example dim
+ffrwd-wasm --shape target/wasm32-wasip2/release/examples/dim.wasm --bound v
+```
 
 ## Testing on the host
 
