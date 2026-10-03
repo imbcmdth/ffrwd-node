@@ -18,6 +18,21 @@ test('a schema from a row description', () => {
   assert.ok(required.includes('start_t') && !required.includes('hidden'));
 });
 
+test('a schema is written as the Rust SDK writes it, keys sorted', () => {
+  assert.equal(
+    schemaOf({ ...SPAN, x: 'integer', y: 'integer', w: 'integer', h: 'integer' }),
+    '{"properties":{"h":{"type":"integer"},"id":{"type":"integer"},"start_t":{"type":"number"},' +
+      '"w":{"type":"integer"},"x":{"type":"integer"},"y":{"type":"integer"}},' +
+      '"required":["h","id","start_t","w","x","y"],"type":"object"}',
+  );
+  assert.equal(
+    schemaOf({ vector: ['number'], hidden: null, at: { t: 'number' } }),
+    '{"properties":{"at":{"properties":{"t":{"type":"number"}},"required":["t"],"type":"object"},' +
+      '"hidden":{},"vector":{"items":{"type":"number"},"type":"array"}},' +
+      '"required":["at","vector"],"type":"object"}',
+  );
+});
+
 test('rows parse and say which did not', () => {
   assert.deepEqual(parse('{"x":3}'), { x: 3 });
   assert.throws(() => parse('{"start_t":soon}'), /soon/);

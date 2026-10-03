@@ -23,19 +23,22 @@ export function schemaOf(description) {
   return JSON.stringify(schemaFor(description));
 }
 
+// Keys in sorted order at every level, as serde_json writes its maps, so a
+// schema reads the same byte for byte from every SDK.
 function schemaFor(description) {
   if (description === null || description === undefined) return {};
   if (typeof description === 'string') return { type: description };
   if (Array.isArray(description)) {
-    return description.length > 0 ? { type: 'array', items: schemaFor(description[0]) } : { type: 'array' };
+    return description.length > 0 ? { items: schemaFor(description[0]), type: 'array' } : { type: 'array' };
   }
   const properties = {};
   const required = [];
-  for (const [name, field] of Object.entries(description)) {
+  for (const name of Object.keys(description).sort()) {
+    const field = description[name];
     properties[name] = schemaFor(field);
     if (field !== null && field !== undefined) required.push(name);
   }
-  return { type: 'object', properties, required };
+  return { properties, required, type: 'object' };
 }
 
 /** The fields a span writes into a row, for `schemaOf`. */
