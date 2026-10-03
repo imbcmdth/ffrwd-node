@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 
 pub mod bindings {
     wit_bindgen::generate!({
-        path: "wit",
+        path: "../wit",
         world: "ffrwd:av/node-module@0.19.1",
         pub_export_macro: true,
         default_bindings_module: "ffrwd_node::__glue::bindings",

@@ -1,4 +1,4 @@
-//! The crate's `wit/av.wit` against the one `FFRWD_WIT_DIR` names, when it
+//! The repo's `wit/av.wit` against the one `FFRWD_WIT_DIR` names, when it
 //! names one: the bindings are only as current as that copy.
 
 use std::path::{Path, PathBuf};
@@ -10,7 +10,7 @@ fn text(path: &Path) -> String {
 }
 
 fn ours() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("wit/av.wit")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../wit/av.wit")
 }
 
 #[test]
