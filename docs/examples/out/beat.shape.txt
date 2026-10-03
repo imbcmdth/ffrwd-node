@@ -1,0 +1,20 @@
+$ ffrwd-wasm --shape target/wasm32-wasip2/release/beat.wasm --params '{"every":0.5}'
+{
+  "bounded": false,
+  "clock": {"kind": "self_clocked"},
+  "inputs": [],
+  "one_to_one": false,
+  "outputs": [
+    {
+      "format": {"color": null, "height": 240, "kind": "video", "pix_fmt": "rgba", "width": 320},
+      "kind": "video",
+      "latency": 0.0,
+      "name": "video",
+      "row": 0,
+      "schema": null,
+      "time_base": null
+    }
+  ],
+  "pure": false,
+  "relation": ["{\"width\":320,\"height\":240}"]
+}

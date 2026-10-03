@@ -1,9 +1,15 @@
-"""Builds every example module, runs the tests, and prints every
+"""Builds every Rust example, runs the tests, and prints every
 `ffrwd-wasm --describe`, `--shape`, `ffrwd compile` and `ffrwd explain` the
-guide shows. Each output also lands in out/, which check.py reads.
+guide shows. Each output also lands in examples/out/, which check.py reads.
+Then it runs cpp-run.py, js-run.py and go-run.py, which record the same for
+their languages under examples/<lang>/out/ and compare them with these.
 
     python run.py            build, test and print everything
     python run.py --no-build print from the modules already built
+    python run.py --rust     the Rust examples alone
+
+FFRWD_CLI names the toolchain and FFRWD_MEDIA the test media, its
+tests/fixtures unless set.
 """
 
 import json
@@ -15,10 +21,13 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / "out"
+EXAMPLES = HERE.parent / "examples"
+OUT = EXAMPLES / "out"
 TOOLCHAIN = Path(os.environ.get("FFRWD_CLI", r"E:\ffrwd-cli-node-cli\cli"))
 WASM = TOOLCHAIN / ".venv" / "Scripts" / "ffrwd-wasm.exe"
 FFRWD = ["uv", "run", "--no-sync", "--project", str(TOOLCHAIN), "ffrwd"]
+FIXTURES = Path(os.environ.get("FFRWD_MEDIA", TOOLCHAIN / "tests" / "fixtures"))
+LANGUAGES = ["cpp", "js", "go"]
 
 # Every crate: its directory, and the module it builds.
 CRATES = {
@@ -118,24 +127,24 @@ def save(name, text):
 
 
 def wasm_of(crate):
-    return HERE / crate / "target" / "wasm32-wasip2" / "release" / f"{CRATES[crate]}.wasm"
+    return EXAMPLES / crate / "target" / "wasm32-wasip2" / "release" / f"{CRATES[crate]}.wasm"
 
 
 def node_commit(crate):
-    lock = (HERE / crate / "Cargo.lock").read_text(encoding="utf-8")
+    lock = (EXAMPLES / crate / "Cargo.lock").read_text(encoding="utf-8")
     found = re.search(r'source = "git\+https://github.com/imbcmdth/ffrwd-node\?tag=([^#]+)#(\w+)"', lock)
-    return f"{found.group(1)} {found.group(2)[:8]}" if found else "?"
+    return f"{found.group(1)} {found.group(2)[:8]}" if found else "from the repo's rust/"
 
 
 def build():
     lines = []
     for crate in CRATES:
-        run(["cargo", "build", "--release", "--target", "wasm32-wasip2"], HERE / crate)
-        warned = run(["cargo", "build", "--release", "--target", "wasm32-wasip2"], HERE / crate)
+        run(["cargo", "build", "--release", "--target", "wasm32-wasip2"], EXAMPLES / crate)
+        warned = run(["cargo", "build", "--release", "--target", "wasm32-wasip2"], EXAMPLES / crate)
         warnings = warned.stderr.count("warning:")
         lines.append(f"{crate}: {wasm_of(crate).name} built, ffrwd-node {node_commit(crate)}, {warnings} warnings")
     for crate in TESTED:
-        tested = run(["cargo", "test"], HERE / crate)
+        tested = run(["cargo", "test"], EXAMPLES / crate)
         passed = re.findall(r"test result: ok\. (\d+) passed", tested.stdout)
         lines.append(f"{crate}: cargo test, {sum(map(int, passed))} passed")
     save("build.txt", "\n".join(lines) + "\n")
@@ -162,7 +171,7 @@ def shapes():
             argv += ["--params", json.dumps(params, separators=(",", ":"))]
         if bound is not None:
             argv += ["--bound", bound if isinstance(bound, str) else json.dumps(bound, separators=(",", ":"))]
-        done = run(argv, HERE / crate, ok=(0, 1))
+        done = run(argv, EXAMPLES / crate, ok=(0, 1))
         command = "$ ffrwd-wasm " + " ".join(quote(a) for a in argv[1:])
         if done.returncode:
             save(f"{name}.shape.txt", f"{command}\n{done.stderr}")
@@ -170,7 +179,7 @@ def shapes():
             save(f"{name}.shape.txt", f"{command}\n{compact(json.loads(done.stdout))}\n")
     for name, crate in DESCRIBES:
         argv = [str(WASM), "--describe", f"target/wasm32-wasip2/release/{CRATES[crate]}.wasm"]
-        done = run(argv, HERE / crate)
+        done = run(argv, EXAMPLES / crate)
         command = "$ ffrwd-wasm " + " ".join(quote(a) for a in argv[1:])
         save(f"{name}.describe.txt", f"{command}\n{compact(json.loads(done.stdout))}\n")
 
@@ -204,10 +213,10 @@ def wrap(line, width=88):
 
 def compiles():
     for where, (crates, queries) in RUNS.items():
-        directory = HERE / where
+        directory = EXAMPLES / where
         directory.mkdir(parents=True, exist_ok=True)
         for medium in MEDIA:
-            shutil.copy(HERE / "media" / medium, directory / medium)
+            shutil.copy(FIXTURES / medium, directory / medium)
         for crate in crates:
             shutil.copy(wasm_of(crate), directory / wasm_of(crate).name)
         chapter = where.split("/")[0]
@@ -236,7 +245,7 @@ EXECS = [
 
 def executes():
     for where, query, product, jobs in EXECS:
-        directory = HERE / where
+        directory = EXAMPLES / where
         chapter = where.split("/")[0]
         for count in jobs:
             run(FFRWD + ["run", "-q", "-y", "--jobs", str(count), "-f", query], directory)
@@ -254,10 +263,19 @@ def package():
     """The levels package's own recipe, compiled as `ffrwd run levels` would
     run it. Its plan names the module by its full path, so it is kept out
     of the guide."""
-    directory = HERE / "10-testing" / "levels"
+    directory = EXAMPLES / "10-testing" / "levels"
     argv = ["compile", "levels", "-v", "source=../run/av.mp4", "-v", "dest=out.mp4"]
     done = run(FFRWD + argv, directory)
     save("10-testing-package.compile.txt", "$ ffrwd " + " ".join(argv) + "\n" + done.stdout)
+
+
+def languages():
+    flags = ["--no-build"] if "--no-build" in sys.argv else []
+    for language in LANGUAGES:
+        print(f"=== {language}-run.py", flush=True)
+        done = subprocess.run([sys.executable, str(HERE / f"{language}-run.py"), *flags], cwd=HERE)
+        if done.returncode:
+            sys.exit(f"{language}-run.py failed")
 
 
 def main():
@@ -267,6 +285,8 @@ def main():
     compiles()
     executes()
     package()
+    if "--rust" not in sys.argv:
+        languages()
 
 
 if __name__ == "__main__":

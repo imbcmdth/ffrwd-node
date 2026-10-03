@@ -45,7 +45,7 @@ $ ffrwd-wasm --shape build/band.wasm --bound v,cues
       },
       "required": true,
       "rows": "state",
-      "schema": "{\"type\":\"object\",\"properties\":{\"start_t\":{\"type\":\"number\"},\"end_t\":{\"type\":\"number\"},\"text\":{\"type\":\"string\"}},\"required\":[\"start_t\",\"end_t\",\"text\"]}",
+      "schema": "{\"properties\":{\"end_t\":{\"type\":\"number\"},\"start_t\":{\"type\":\"number\"},\"text\":{\"type\":\"string\"}},\"required\":[\"end_t\",\"start_t\",\"text\"],\"type\":\"object\"}",
       "stride": 1,
       "window": 1
     }

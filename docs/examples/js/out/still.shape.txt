@@ -32,7 +32,7 @@ $ ffrwd-wasm --shape build/still.wasm --params '{"longest":2}' --bound '[{"input
       "latency": 2.066666666666667,
       "name": "stills",
       "row": null,
-      "schema": "{\"type\":\"object\",\"properties\":{\"start_t\":{\"type\":\"number\"},\"end_t\":{\"type\":\"number\"}},\"required\":[\"start_t\",\"end_t\"]}",
+      "schema": "{\"properties\":{\"end_t\":{\"type\":\"number\"},\"start_t\":{\"type\":\"number\"}},\"required\":[\"end_t\",\"start_t\"],\"type\":\"object\"}",
       "time_base": null
     }
   ],

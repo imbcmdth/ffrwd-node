@@ -9,26 +9,26 @@
 02-filter/blend: blend.sql compile: same
 02-filter/blend: blend.sql run: same bytes
 02-filter/blend: hflip.sql compile: same
-03-detector/glow: --shape glow-3: same but for the order of a row schema's keys
+03-detector/glow: --shape glow-3: same
 03-detector/glow: --describe glow-3: same
 03-detector/glow: glow.sql compile: same
 03-detector/glow: glow.sql run: same rows, a whole number written 2 where serde writes 2.0
 03-detector/glow: spans.sql compile: same
 03-detector/glow: spans.sql run: same bytes
-04-reader/band: --shape band: same but for the order of a row schema's keys
+04-reader/band: --shape band: same
 04-reader/band: band.sql compile: same
 04-reader/band: band.sql delays: same
 04-reader/band: band.sql run: same bytes
-04-reader/boxmask: --shape boxmask: same but for the order of a row schema's keys
+04-reader/boxmask: --shape boxmask: same
 04-reader/boxmask: boxmask.sql compile: same
 04-reader/boxmask: boxmask.sql run: same bytes
-05-window/level: --shape level-tumbling: same but for the order of a row schema's keys
-05-window/level: --shape level-hopping: same but for the order of a row schema's keys
+05-window/level: --shape level-tumbling: same
+05-window/level: --shape level-hopping: same
 05-window/level: --shape level-names: same
 05-window/level: level.sql compile: same
 05-window/level: level.sql delays: same
 05-window/level: level.sql run: same bytes
-05-window/still: --shape still: same but for the order of a row schema's keys
+05-window/still: --shape still: same
 05-window/still: still.sql compile: same
 05-window/still: still.sql delays: same
 05-window/still: still.sql run: same rows, a whole number written 2 where serde writes 2.0
@@ -45,8 +45,8 @@
 07-sink/tally: tally.sql run: same rows (but the tick each was reported on)
 07-sink/tally: encoded.sql compile: same
 07-sink/tally: encoded.sql run: same rows (but the tick each was reported on)
-08-held/cutin: --shape cutin-port: same but for the order of a row schema's keys
-08-held/cutin: --shape cutin-stream: same but for the order of a row schema's keys
+08-held/cutin: --shape cutin-port: same
+08-held/cutin: --shape cutin-stream: same
 08-held/cutin: cutin.sql compile: same
 08-held/cutin: cutin.sql run: same bytes
 08-held/cutin: presence.sql compile: same
@@ -54,7 +54,7 @@
 08-held/mosaic: --shape mosaic: same
 08-held/mosaic: mosaic.sql compile: same
 08-held/mosaic: mosaic.sql run: same bytes
-09-pure/glow: --shape glow-9: same but for the order of a row schema's keys
+09-pure/glow: --shape glow-9: same
 09-pure/glow: spans.sql compile: same
 09-pure/glow: spans.sql run: same bytes
 09-pure/glow: spans.sql run --jobs 4: same bytes

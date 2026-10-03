@@ -39,7 +39,7 @@ $ ffrwd-wasm --shape build/boxmask.wasm --bound v,boxes
       "pairing": {"kind": "lockstep"},
       "required": true,
       "rows": "per_frame",
-      "schema": "{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"w\":{\"type\":\"number\"},\"h\":{\"type\":\"number\"}},\"required\":[\"x\",\"y\",\"w\",\"h\"]}",
+      "schema": "{\"properties\":{\"h\":{\"type\":\"number\"},\"w\":{\"type\":\"number\"},\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"}},\"required\":[\"h\",\"w\",\"x\",\"y\"],\"type\":\"object\"}",
       "stride": 1,
       "window": 1
     }

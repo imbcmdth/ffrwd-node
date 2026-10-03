@@ -1,0 +1,49 @@
+$ ffrwd-wasm --shape target/wasm32-wasip2/release/mosaic.wasm --params '{"columns":3,"width":960,"height":240}' --bound v,v,v
+{
+  "bounded": true,
+  "clock": {"kind": "rate_of", "port": "v"},
+  "inputs": [
+    {
+      "accepts": {
+        "channel_counts": [],
+        "codecs": [],
+        "like": null,
+        "pixel_formats": ["rgba"],
+        "sample_formats": [],
+        "sample_rates": [],
+        "wants": "all"
+      },
+      "kind": "video",
+      "many": true,
+      "name": "v",
+      "pairing": {
+        "anchor": {"kind": "shared_clock"},
+        "group": null,
+        "kind": "hold",
+        "lead": 0.0,
+        "linger": null,
+        "port_param": null,
+        "timeout": null
+      },
+      "required": true,
+      "rows": "ignore",
+      "schema": null,
+      "stride": 1,
+      "window": 1
+    }
+  ],
+  "one_to_one": false,
+  "outputs": [
+    {
+      "format": {"color": null, "height": 240, "kind": "video", "pix_fmt": "rgba", "width": 960},
+      "kind": "video",
+      "latency": 0.0,
+      "name": "v",
+      "row": null,
+      "schema": null,
+      "time_base": null
+    }
+  ],
+  "pure": true,
+  "relation": []
+}

@@ -73,7 +73,7 @@ $ ffrwd-wasm --shape build/cutin.wasm --params '{"port":9100}' --bound '[{"input
       },
       "required": false,
       "rows": "per_frame",
-      "schema": "{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"}},\"required\":[\"text\"]}",
+      "schema": "{\"properties\":{\"text\":{\"type\":\"string\"}},\"required\":[\"text\"],\"type\":\"object\"}",
       "stride": 1,
       "window": 1
     }
@@ -95,7 +95,7 @@ $ ffrwd-wasm --shape build/cutin.wasm --params '{"port":9100}' --bound '[{"input
       "latency": 0.0,
       "name": "presence",
       "row": null,
-      "schema": "{\"type\":\"object\",\"properties\":{\"event\":{\"type\":\"string\"},\"t\":{\"type\":\"number\"},\"at\":{\"type\":\"number\"},\"text\":{}},\"required\":[\"event\",\"t\",\"at\"]}",
+      "schema": "{\"properties\":{\"at\":{\"type\":\"number\"},\"event\":{\"type\":\"string\"},\"t\":{\"type\":\"number\"},\"text\":{}},\"required\":[\"at\",\"event\",\"t\"],\"type\":\"object\"}",
       "time_base": null
     }
   ],

@@ -1,0 +1,25 @@
+$ ffrwd-wasm --describe target/wasm32-wasip2/release/invert.wasm
+{
+  "world": "node-module",
+  "name": "invert",
+  "version": "0.1.0",
+  "params_schema": {"additionalProperties": false, "properties": {}, "type": "object"},
+  "rows_schema": null,
+  "pixel_formats": [],
+  "sample_formats": [],
+  "sample_rates": [],
+  "channel_counts": [],
+  "rows_language": [],
+  "packet_sink": false,
+  "packet_filter": false,
+  "source": false,
+  "rows_module": false,
+  "data_filter": false,
+  "inputs": 1,
+  "nn": false,
+  "http": false,
+  "udp": false,
+  "tcp": false,
+  "gpu": false,
+  "node": true
+}

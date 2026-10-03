@@ -1,0 +1,19 @@
+01-first-node/invert: invert.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+01-first-node/scaffold: invert.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+02-filter/zoom: zoom.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+02-filter/blend: blend.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+03-detector/glow: glow.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+04-reader/band: band.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+04-reader/boxmask: boxmask.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+05-window/level: level.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+05-window/still: still.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+06-source/bars: bars.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+06-source/beat: beat.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+07-sink/tally: tally.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+08-held/cutin: cutin.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+08-held/mosaic: mosaic.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+09-pure/glow: glow.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+10-testing/levels: levels.wasm built, ffrwd-node from the repo's rust/, 0 warnings
+03-detector/glow: cargo test, 1 passed
+09-pure/glow: cargo test, 2 passed
+10-testing/levels: cargo test, 4 passed

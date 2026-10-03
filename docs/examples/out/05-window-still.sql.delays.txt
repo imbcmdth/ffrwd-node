@@ -1,0 +1,3 @@
+$ ffrwd explain --delays -f still.sql
+still: sliding 0.133 s
+stills.ndjson (rows): 2.2 s behind the source

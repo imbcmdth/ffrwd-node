@@ -32,7 +32,7 @@ $ ffrwd-wasm --shape build/level.wasm --params '{"window":2}' --bound '[{"input"
       "latency": 0.0,
       "name": "cues",
       "row": null,
-      "schema": "{\"type\":\"object\",\"properties\":{\"start_t\":{\"type\":\"number\"},\"end_t\":{\"type\":\"number\"},\"text\":{\"type\":\"string\"}},\"required\":[\"start_t\",\"end_t\",\"text\"]}",
+      "schema": "{\"properties\":{\"end_t\":{\"type\":\"number\"},\"start_t\":{\"type\":\"number\"},\"text\":{\"type\":\"string\"}},\"required\":[\"end_t\",\"start_t\",\"text\"],\"type\":\"object\"}",
       "time_base": null
     }
   ],

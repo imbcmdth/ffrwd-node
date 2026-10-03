@@ -1,0 +1,2 @@
+$ ffrwd compile -f hflip.sql
+error: line 1:17: UNSUPPORTED_SQL: function 'blend': the module 'blend.wasm' reads several streams, and the output of 'src_f_v_0_split' and the output of 'n1' do not run in lockstep: they reach it from different points (hint: feed every stream of a multi-stream module from one stream, through modules that declare one frame out per frame in)

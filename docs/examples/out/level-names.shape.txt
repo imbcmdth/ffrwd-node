@@ -1,0 +1,2 @@
+$ ffrwd-wasm --shape target/wasm32-wasip2/release/level.wasm --bound a
+ffrwd-wasm: asking target/wasm32-wasip2/release/level.wasm for its shape: level refused the shape: level counts its window in samples, and the call gives `a` no sample rate

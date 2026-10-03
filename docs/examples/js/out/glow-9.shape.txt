@@ -32,7 +32,7 @@ $ ffrwd-wasm --shape build/glow.wasm --bound v
       "latency": 0.0,
       "name": "glows",
       "row": null,
-      "schema": "{\"type\":\"object\",\"properties\":{\"start_t\":{\"type\":\"number\"},\"id\":{\"type\":\"integer\"},\"x\":{\"type\":\"integer\"},\"y\":{\"type\":\"integer\"},\"w\":{\"type\":\"integer\"},\"h\":{\"type\":\"integer\"}},\"required\":[\"start_t\",\"id\",\"x\",\"y\",\"w\",\"h\"]}",
+      "schema": "{\"properties\":{\"h\":{\"type\":\"integer\"},\"id\":{\"type\":\"integer\"},\"start_t\":{\"type\":\"number\"},\"w\":{\"type\":\"integer\"},\"x\":{\"type\":\"integer\"},\"y\":{\"type\":\"integer\"}},\"required\":[\"h\",\"id\",\"start_t\",\"w\",\"x\",\"y\"],\"type\":\"object\"}",
       "time_base": null
     }
   ],

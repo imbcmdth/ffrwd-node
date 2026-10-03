@@ -201,14 +201,16 @@ levels-refused.shape: identical
 07-sink tally.sql run, --jobs 1, stdout (2 lines): identical
 07-sink encoded.sql run, --jobs 1, stdout (2 lines): identical
 08-held cutin.sql run, --jobs 1, cutin.mp4 (60 lines): identical
-08-held presence.sql run, --jobs 1, presence.ndjson (3 lines): the same rows, numbers spelled apart
+08-held presence.sql run, --jobs 1, presence.ndjson (3 lines): differs
     --- rust
     +++ go
-    @@ -1,2 +1,2 @@
+    @@ -1,3 +1,3 @@
     -{"event":"coming","t":0.0,"at":1.0,"text":null,"pts":0,"time":0.0}
     -{"event":"on","t":1.0,"at":1.0,"text":null,"pts":61440,"time":1.0}
-    +{"event":"coming","t":0,"at":1,"text":null,"pts":0,"time":0.0}
-    +{"event":"on","t":1,"at":1,"text":null,"pts":61440,"time":1.0}
+    -{"event":"off","t":2.533333333333333,"at":2.533333333333333,"text":null,"pts":155648,"time":2.533333333333333}
+    +{"event":"coming","t":0.13333333333333333,"at":1.1333333333333333,"text":null,"pts":8192,"time":0.13333333333333333}
+    +{"event":"on","t":1.1333333333333333,"at":1.1333333333333333,"text":null,"pts":69632,"time":1.1333333333333333}
+    +{"event":"off","t":2.6666666666666665,"at":2.6666666666666665,"text":null,"pts":163840,"time":2.6666666666666665}
 08-held mosaic.sql run, --jobs 1, mosaic.mp4 (60 lines): identical
 09-pure spans.sql run, --jobs 1, spans.ndjson (2 lines): identical
 09-pure spans.sql run, --jobs 4, spans.ndjson (2 lines): identical

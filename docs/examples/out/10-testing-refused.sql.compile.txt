@@ -1,0 +1,2 @@
+$ ffrwd compile -f refused.sql
+error: line 6:10: UNSUPPORTED_SQL: levels(): the module 'levels.wasm' refused the shape for these params: ffrwd-wasm: asking levels.wasm for its shape: levels refused the shape: levels needs `black` under `white` (hint: check the arguments match what the module declares)

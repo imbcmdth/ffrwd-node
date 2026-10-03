@@ -1,0 +1,2 @@
+$ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --params '{"black":200,"white":100}' --bound v
+ffrwd-wasm: asking target/wasm32-wasip2/release/levels.wasm for its shape: levels refused the shape: levels needs `black` under `white`

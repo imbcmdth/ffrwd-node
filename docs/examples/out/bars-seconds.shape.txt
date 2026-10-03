@@ -1,0 +1,20 @@
+$ ffrwd-wasm --shape target/wasm32-wasip2/release/bars.wasm --params '{"width":640,"height":360,"seconds":5}'
+{
+  "bounded": true,
+  "clock": {"den": 1, "kind": "rate", "num": 30},
+  "inputs": [],
+  "one_to_one": false,
+  "outputs": [
+    {
+      "format": {"color": null, "height": 360, "kind": "video", "pix_fmt": "rgba", "width": 640},
+      "kind": "video",
+      "latency": 0.0,
+      "name": "video",
+      "row": 0,
+      "schema": null,
+      "time_base": null
+    }
+  ],
+  "pure": true,
+  "relation": ["{\"width\":640,\"height\":360}"]
+}
