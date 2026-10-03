@@ -1,0 +1,354 @@
+{
+  "language": "go",
+  "about": "Every Rust-specific block the guide shows, in template order, with the Go block that stands for it. Paths are relative to docs/examples, as the templates' directives are. lines is first-last, null for the whole file. A block with text instead of a file is written in the template itself. Every other directive (@sql of a run query, @json, the compile and delays outputs, the 09-pure spans) prints the same for Go, as out/compare.txt records.",
+  "blocks": [
+    {
+      "template": "01-first-node.md",
+      "line": 13,
+      "rust": "@toml 01-first-node/invert/Cargo.toml",
+      "go": {"file": "go/01-first-node/invert/go.mod", "lines": null, "info": ""},
+      "note": "go.mod for Cargo.toml: the SDK by its module path, replaced with the repo's go/ as the Rust example takes rust/ by path."
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 35,
+      "rust": "@rust 01-first-node/invert/src/lib.rs",
+      "go": {"file": "go/01-first-node/invert/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 50,
+      "rust": "inline: cargo build --target wasm32-wasip2 --release",
+      "go": {
+        "text": "componentize-go -d \"$(go list -m -f '{{.Dir}}' github.com/imbcmdth/ffrwd-node/go)/wit\" \\\n    -w ffrwd:av/node-module@0.19.1 build -o build/invert.wasm",
+        "info": ""
+      },
+      "note": "The prose after it names target/wasm32-wasip2/release/invert.wasm; the Go module is build/invert.wasm."
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 60,
+      "rust": "@out invert.describe.txt",
+      "go": {"file": "go/out/invert.describe.txt", "lines": null, "info": ""},
+      "note": "The JSON is the Rust one's byte for byte; the command reads build/invert.wasm."
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 71,
+      "rust": "@out invert.shape.txt",
+      "go": {"file": "go/out/invert.shape.txt", "lines": null, "info": ""},
+      "note": "As above: the same JSON, the command on build/invert.wasm."
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 108,
+      "rust": "inline: $ ffrwd init --rust --name acme/invert",
+      "go": {
+        "file": "go/01-first-node/scaffold",
+        "lines": null,
+        "info": "",
+        "files": [
+          "go/01-first-node/scaffold/go.mod",
+          "go/01-first-node/scaffold/main.go",
+          "go/01-first-node/scaffold/build.sh",
+          "go/01-first-node/scaffold/ffrwd.json",
+          "go/01-first-node/scaffold/ffrwd.lock",
+          "go/01-first-node/scaffold/src/passthrough.sql",
+          "go/01-first-node/scaffold/recipes/passthrough.sql",
+          "go/01-first-node/scaffold/README.md",
+          "go/01-first-node/scaffold/.ffrwdignore",
+          "go/01-first-node/scaffold/.gitignore"
+        ]
+      },
+      "note": "ffrwd 0.29.2 has no init --go, so the package is written by hand: what init --rust writes, with go.mod, main.go and build.sh for Cargo.toml and src/lib.rs, and the lib SQL naming build/invert.wasm. The prose after the block names Cargo.toml and ffrwd-frame."
+    },
+    {
+      "template": "02-filter.md",
+      "line": 30,
+      "rust": "inline: ffrwd-frame = { git = \"https://github.com/imbcmdth/ffrwd-frame\", tag = \"v0.1.1\" }",
+      "go": {"file": "go/02-filter/zoom/resize.go", "lines": null, "info": "go"},
+      "note": "Go has no ffrwd-frame: resize.go is the crop and Pillow's bilinear resize written out by hand, as ffrwd-frame asks fast_image_resize for it, so the pictures are the Rust example's byte for byte. Its header comment says so."
+    },
+    {
+      "template": "02-filter.md",
+      "line": 34,
+      "rust": "@rust 02-filter/zoom/src/lib.rs",
+      "go": {"file": "go/02-filter/zoom/main.go", "lines": null, "info": "go"},
+      "note": "Rust's EIGHT_BITS and interleave are resize.go's rgb and opaque here."
+    },
+    {
+      "template": "02-filter.md",
+      "line": 77,
+      "rust": "@rust 02-filter/blend/src/lib.rs",
+      "go": {"file": "go/02-filter/blend/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "02-filter.md",
+      "line": 106,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/blend.wasm --bound v,over",
+      "go": {"text": "$ ffrwd-wasm --shape build/blend.wasm --bound v,over", "info": ""}
+    },
+    {
+      "template": "03-detector.md",
+      "line": 33,
+      "rust": "@rust 03-detector/glow/src/lib.rs 1-25",
+      "go": {"file": "go/03-detector/glow/main.go", "lines": "1-27", "info": "go"},
+      "note": "The imports, Params, the Glow row with node.Span embedded, and GlowNode."
+    },
+    {
+      "template": "03-detector.md",
+      "line": 37,
+      "rust": "@rust 03-detector/glow/src/lib.rs 42-85",
+      "go": {"file": "go/03-detector/glow/main.go", "lines": "48-98", "info": "go"},
+      "note": "The Definition through main, bright (29-46) left out as the Rust block leaves it out."
+    },
+    {
+      "template": "03-detector.md",
+      "line": 45,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/glow.wasm --bound v",
+      "go": {"text": "$ ffrwd-wasm --shape build/glow.wasm --bound v", "info": ""}
+    },
+    {
+      "template": "03-detector.md",
+      "line": 71,
+      "rust": "@lines 03-detector-glows-jobs1.ndjson ndjson 1-3",
+      "go": {"file": "go/out/03-detector-glows-jobs1.ndjson", "lines": "1-3", "info": "ndjson"},
+      "note": "The same rows; encoding/json writes a whole float64 as 0 where serde_json writes 0.0, and the host writes a row's text as the node made it."
+    },
+    {
+      "template": "04-reader.md",
+      "line": 51,
+      "rust": "@rust 04-reader/band/src/lib.rs",
+      "go": {"file": "go/04-reader/band/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "04-reader.md",
+      "line": 56,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/band.wasm --bound v,cues",
+      "go": {"text": "$ ffrwd-wasm --shape build/band.wasm --bound v,cues", "info": ""}
+    },
+    {
+      "template": "04-reader.md",
+      "line": 91,
+      "rust": "@rust 04-reader/boxmask/src/lib.rs",
+      "go": {"file": "go/04-reader/boxmask/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "04-reader.md",
+      "line": 97,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/boxmask.wasm --bound v,boxes",
+      "go": {"text": "$ ffrwd-wasm --shape build/boxmask.wasm --bound v,boxes", "info": ""}
+    },
+    {
+      "template": "05-window.md",
+      "line": 37,
+      "rust": "@rust 05-window/level/src/lib.rs",
+      "go": {"file": "go/05-window/level/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "05-window.md",
+      "line": 41,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/level.wasm --params '{\"window\":1,\"hop\":0.5}' --bound '[{\"input\":\"a\",\"streams\":[{\"rate\":{\"num\":44100,\"den\":1}}]}]'",
+      "go": {"text": "$ ffrwd-wasm --shape build/level.wasm --params '{\"window\":1,\"hop\":0.5}' --bound '[{\"input\":\"a\",\"streams\":[{\"rate\":{\"num\":44100,\"den\":1}}]}]'", "info": ""}
+    },
+    {
+      "template": "05-window.md",
+      "line": 81,
+      "rust": "@rust 05-window/still/src/lib.rs",
+      "go": {"file": "go/05-window/still/main.go", "lines": null, "info": "go"},
+      "note": "Rust's Option<(i64, f64)> is a *opening here."
+    },
+    {
+      "template": "05-window.md",
+      "line": 89,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/still.wasm --params '{\"longest\":2}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'",
+      "go": {"text": "$ ffrwd-wasm --shape build/still.wasm --params '{\"longest\":2}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'", "info": ""}
+    },
+    {
+      "template": "05-window.md",
+      "line": 104,
+      "rust": "@lines 05-window-stills-jobs1.ndjson ndjson 1-2",
+      "go": {"file": "go/out/05-window-stills-jobs1.ndjson", "lines": "1-2", "info": "ndjson"},
+      "note": "The same rows, start_t and end_t 0 and 2 where Rust writes 0.0 and 2.0."
+    },
+    {
+      "template": "06-source.md",
+      "line": 44,
+      "rust": "@rust 06-source/bars/src/lib.rs",
+      "go": {"file": "go/06-source/bars/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "06-source.md",
+      "line": 48,
+      "rust": "@out bars-seconds.shape.txt",
+      "go": {"file": "go/out/bars-seconds.shape.txt", "lines": null, "info": ""},
+      "note": "The same JSON, the command on build/bars.wasm."
+    },
+    {
+      "template": "06-source.md",
+      "line": 65,
+      "rust": "@rust 06-source/beat/src/lib.rs",
+      "go": {"file": "go/06-source/beat/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "06-source.md",
+      "line": 67,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/beat.wasm --params '{\"every\":0.5}'",
+      "go": {"text": "$ ffrwd-wasm --shape build/beat.wasm --params '{\"every\":0.5}'", "info": ""}
+    },
+    {
+      "template": "07-sink.md",
+      "line": 45,
+      "rust": "@rust 07-sink/tally/src/lib.rs",
+      "go": {"file": "go/07-sink/tally/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "07-sink.md",
+      "line": 50,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/tally.wasm --bound video,audio",
+      "go": {"text": "$ ffrwd-wasm --shape build/tally.wasm --bound video,audio", "info": ""}
+    },
+    {
+      "template": "07-sink.md",
+      "line": 60,
+      "rust": "inline: $ ffrwd-wasm --describe target/wasm32-wasip2/release/tally.wasm",
+      "go": {"text": "$ ffrwd-wasm --describe build/tally.wasm", "info": ""}
+    },
+    {
+      "template": "08-held.md",
+      "line": 110,
+      "rust": "@rust 08-held/cutin/src/lib.rs",
+      "go": {"file": "go/08-held/cutin/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "08-held.md",
+      "line": 114,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/cutin.wasm --params '{\"port\":9100}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'",
+      "go": {"text": "$ ffrwd-wasm --shape build/cutin.wasm --params '{\"port\":9100}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'", "info": ""}
+    },
+    {
+      "template": "08-held.md",
+      "line": 152,
+      "rust": "@rust 08-held/mosaic/src/lib.rs",
+      "go": {"file": "go/08-held/mosaic/main.go", "lines": null, "info": "go"},
+      "note": "Its resize.go is zoom's, byte for byte: the hand-written stand-in for ffrwd-frame's planes."
+    },
+    {
+      "template": "08-held.md",
+      "line": 157,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/mosaic.wasm --params '{\"columns\":3,\"width\":960,\"height\":240}' --bound v,v,v",
+      "go": {"text": "$ ffrwd-wasm --shape build/mosaic.wasm --params '{\"columns\":3,\"width\":960,\"height\":240}' --bound v,v,v", "info": ""}
+    },
+    {
+      "template": "09-pure.md",
+      "line": 40,
+      "rust": "@rust 03-detector/glow/src/lib.rs 87-129",
+      "go": {"file": "go/03-detector/glow/main_test.go", "lines": null, "info": "go"},
+      "note": "Go keeps tests beside the code in main_test.go. The expected text is {\"start_t\":0 where Rust's is {\"start_t\":0.0, as encoding/json writes a whole float64."
+    },
+    {
+      "template": "09-pure.md",
+      "line": 55,
+      "rust": "@rust 09-pure/glow/src/lib.rs 44-94",
+      "go": {"file": "go/09-pure/glow/main.go", "lines": "51-108", "info": "go"}
+    },
+    {
+      "template": "09-pure.md",
+      "line": 67,
+      "rust": "@rust 09-pure/glow/src/lib.rs 96-154",
+      "go": {"file": "go/09-pure/glow/main_test.go", "lines": null, "info": "go"},
+      "note": "The second test's prefixes are {\"start_t\":0,\"id\":0, and {\"start_t\":0.2,\"id\":1, as above."
+    },
+    {
+      "template": "10-testing.md",
+      "line": 16,
+      "rust": "@rust 10-testing/levels/src/lib.rs 1-69",
+      "go": {"file": "go/10-testing/levels/main.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "10-testing.md",
+      "line": 39,
+      "rust": "@rust 10-testing/levels/src/lib.rs 71-120",
+      "go": {"file": "go/10-testing/levels/main_test.go", "lines": null, "info": "go"}
+    },
+    {
+      "template": "10-testing.md",
+      "line": 43,
+      "rust": "inline: cargo test",
+      "go": {"text": "go test ./...", "info": ""}
+    },
+    {
+      "template": "10-testing.md",
+      "line": 53,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound v",
+      "go": {"text": "$ ffrwd-wasm --shape build/levels.wasm --bound v", "info": ""}
+    },
+    {
+      "template": "10-testing.md",
+      "line": 59,
+      "rust": "inline: $ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":25,\"den\":1}}]}]'",
+      "go": {"text": "$ ffrwd-wasm --shape build/levels.wasm --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":25,\"den\":1}}]}]'", "info": ""}
+    },
+    {
+      "template": "10-testing.md",
+      "line": 70,
+      "rust": "@out level-names.shape.txt",
+      "go": {"file": "go/out/level-names.shape.txt", "lines": null, "info": ""},
+      "note": "The same refusal, word for word; the command and the message name build/level.wasm."
+    },
+    {
+      "template": "10-testing.md",
+      "line": 75,
+      "rust": "@out levels-refused.shape.txt",
+      "go": {"file": "go/out/levels-refused.shape.txt", "lines": null, "info": ""},
+      "note": "The same refusal; the command and the message name build/levels.wasm."
+    },
+    {
+      "template": "10-testing.md",
+      "line": 98,
+      "rust": "@toml 10-testing/levels/Cargo.toml",
+      "go": {"file": "go/10-testing/levels/go.mod", "lines": null, "info": "", "also": {"file": "go/10-testing/levels/build.sh", "lines": null, "info": "sh"}},
+      "note": "Cargo.toml is both the dependencies and the build; in Go those are go.mod and build.sh."
+    },
+    {
+      "template": "10-testing.md",
+      "line": 102,
+      "rust": "@sql 10-testing/levels/src/levels.sql",
+      "go": {"file": "go/10-testing/levels/src/levels.sql", "lines": null, "info": "sql"},
+      "note": "The export names build/levels.wasm, where build.sh writes it."
+    },
+    {
+      "template": "10-testing.md",
+      "line": 107,
+      "rust": "@sql 10-testing/levels/recipes/levels.sql",
+      "go": {"file": "go/10-testing/levels/recipes/levels.sql", "lines": null, "info": "sql"},
+      "note": "The same file in both languages."
+    },
+    {
+      "template": "10-testing.md",
+      "line": 115,
+      "rust": "@json-file 10-testing/levels/ffrwd.json",
+      "go": {"file": "go/10-testing/levels/ffrwd.json", "lines": null, "info": "json"},
+      "note": "\"test\" is go test ./... where Rust's is cargo test."
+    },
+    {
+      "template": "README.md",
+      "line": 43,
+      "rust": "inline: the ffrwd-node and ffrwd-frame links under **Rust**",
+      "go": {
+        "text": "[github.com/imbcmdth/ffrwd-node/go](https://github.com/imbcmdth/ffrwd-node/tree/main/go). Crops and resizes are written by hand.",
+        "info": null
+      }
+    },
+    {
+      "template": "README.md",
+      "line": 49,
+      "rust": "inline: rustup target add wasm32-wasip2 / cargo build --target wasm32-wasip2 --release",
+      "go": {
+        "text": "componentize-go -d \"$(go list -m -f '{{.Dir}}' github.com/imbcmdth/ffrwd-node/go)/wit\" \\\n    -w ffrwd:av/node-module@0.19.1 build -o build/<name>.wasm",
+        "info": ""
+      },
+      "note": "Go 1.25.5 or newer and componentize-go 0.4.1 on PATH; go/README.md says where componentize-go comes from on Windows."
+    }
+  ]
+}

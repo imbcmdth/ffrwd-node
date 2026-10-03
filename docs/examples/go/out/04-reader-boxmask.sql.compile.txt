@@ -1,0 +1,10 @@
+$ ffrwd compile -f boxmask.sql
+ffmpeg -i testsrc.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut pipe:1 | \
+  ffrwd-wasm -f nut -i pipe:0 -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -m glow=glow.wasm -m boxmask=boxmask.wasm -filter_complex \
+  '[v=0:v]glow=threshold=230:gap=2[glows=n1];[v=0:v][boxes=n1]boxmask[v=out0]' -bound \
+  'glow=[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]' -bound \
+  'boxmask=[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]},{"input":"boxes","streams":[{"rate":null}]}]' \
+  -map '[out0]' -f nut pipe:1 | ffmpeg -copyts -f nut -analyzeduration 0 -fpsprobesize \
+  3 -i pipe:0 -map 0:v:0 -c:0 ffv1 mask.mkv

@@ -1,0 +1,19 @@
+01-first-node/invert: invert.wasm built, 3772849 bytes, 0 go vet findings, 0 unformatted
+01-first-node/scaffold: invert.wasm built, 3767828 bytes, 0 go vet findings, 0 unformatted
+02-filter/zoom: zoom.wasm built, 3801932 bytes, 0 go vet findings, 0 unformatted
+02-filter/blend: blend.wasm built, 3780893 bytes, 0 go vet findings, 0 unformatted
+03-detector/glow: glow.wasm built, 3799625 bytes, 0 go vet findings, 0 unformatted
+04-reader/band: band.wasm built, 3805097 bytes, 0 go vet findings, 0 unformatted
+04-reader/boxmask: boxmask.wasm built, 3794038 bytes, 0 go vet findings, 0 unformatted
+05-window/level: level.wasm built, 3799734 bytes, 0 go vet findings, 0 unformatted
+05-window/still: still.wasm built, 3802517 bytes, 0 go vet findings, 0 unformatted
+06-source/bars: bars.wasm built, 3779655 bytes, 0 go vet findings, 0 unformatted
+06-source/beat: beat.wasm built, 3782745 bytes, 0 go vet findings, 0 unformatted
+07-sink/tally: tally.wasm built, 3778020 bytes, 0 go vet findings, 0 unformatted
+08-held/cutin: cutin.wasm built, 3944833 bytes, 0 go vet findings, 0 unformatted
+08-held/mosaic: mosaic.wasm built, 3825038 bytes, 0 go vet findings, 0 unformatted
+09-pure/glow: glow.wasm built, 3797848 bytes, 0 go vet findings, 0 unformatted
+10-testing/levels: levels.wasm built, 3782353 bytes, 0 go vet findings, 0 unformatted
+03-detector/glow: go test, 1 passed
+09-pure/glow: go test, 2 passed
+10-testing/levels: go test, 4 passed

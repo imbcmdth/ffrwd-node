@@ -1,0 +1,5 @@
+$ ffrwd compile -f bars.sql
+ffrwd-wasm -m bars=bars.wasm -filter_complex \
+  'bars=width=640:height=360:fps=30:seconds=5[video=out0]' -bound 'bars=[]' -map \
+  '[out0]' -f nut pipe:1 | ffmpeg -copyts -f nut -analyzeduration 0 -fpsprobesize 3 -i \
+  pipe:0 -map 0:v:0 -c:0 libx264 bars.mp4

@@ -1,0 +1,16 @@
+01-first-node/invert: go 3772849 bytes, rust 411814 bytes
+01-first-node/scaffold: go 3767828 bytes, rust 301740 bytes
+02-filter/zoom: go 3801932 bytes, rust 1291657 bytes
+02-filter/blend: go 3780893 bytes, rust 414421 bytes
+03-detector/glow: go 3799625 bytes, rust 451313 bytes
+04-reader/band: go 3805097 bytes, rust 458036 bytes
+04-reader/boxmask: go 3794038 bytes, rust 461158 bytes
+05-window/level: go 3799734 bytes, rust 446027 bytes
+05-window/still: go 3802517 bytes, rust 444365 bytes
+06-source/bars: go 3779655 bytes, rust 413266 bytes
+06-source/beat: go 3782745 bytes, rust 420293 bytes
+07-sink/tally: go 3778020 bytes, rust 401826 bytes
+08-held/cutin: go 3944833 bytes, rust 474734 bytes
+08-held/mosaic: go 3825038 bytes, rust 1295128 bytes
+09-pure/glow: go 3797848 bytes, rust 446628 bytes
+10-testing/levels: go 3782353 bytes, rust 306782 bytes

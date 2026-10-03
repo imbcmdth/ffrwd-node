@@ -1,0 +1,215 @@
+invert.shape: identical
+zoom.shape: identical
+blend.shape: identical
+glow-3.shape: identical
+band.shape: identical
+boxmask.shape: identical
+level-tumbling.shape: identical
+level-hopping.shape: identical
+level-names.shape: identical
+still.shape: identical
+bars.shape: identical
+bars-seconds.shape: identical
+beat.shape: identical
+tally.shape: identical
+cutin-port.shape: identical
+cutin-stream.shape: identical
+mosaic.shape: identical
+glow-9.shape: identical
+levels-names.shape: identical
+levels-rates.shape: identical
+levels-refused.shape: identical
+01-first-node/invert describe: identical
+01-first-node/scaffold describe: identical
+02-filter/zoom describe: identical
+02-filter/blend describe: identical
+03-detector/glow describe: identical
+04-reader/band describe: identical
+04-reader/boxmask describe: identical
+05-window/level describe: identical
+05-window/still describe: identical
+06-source/bars describe: identical
+06-source/beat describe: identical
+07-sink/tally describe: identical
+08-held/cutin describe: identical
+08-held/mosaic describe: identical
+09-pure/glow describe: identical
+10-testing/levels describe: identical
+01-first-node invert.sql compile: identical
+02-filter zoom.sql compile: identical
+02-filter blend.sql compile: identical
+02-filter hflip.sql compile: identical
+03-detector glow.sql compile: identical
+03-detector spans.sql compile: identical
+04-reader band.sql compile: identical
+04-reader band.sql delays: identical
+04-reader boxmask.sql compile: identical
+05-window level.sql compile: identical
+05-window level.sql delays: identical
+05-window still.sql compile: identical
+05-window still.sql delays: identical
+06-source bars.sql compile: identical
+06-source beat.sql compile: identical
+07-sink tally.sql compile: identical
+07-sink encoded.sql compile: identical
+08-held cutin.sql compile: identical
+08-held presence.sql compile: identical
+08-held mosaic.sql compile: identical
+09-pure spans.sql compile: identical
+10-testing refused.sql compile: identical
+01-first-node invert.sql run, --jobs 1, inverted.mp4 (60 lines): identical
+02-filter zoom.sql run, --jobs 1, zoomed.mp4 (60 lines): identical
+02-filter blend.sql run, --jobs 1, blended.mp4 (60 lines): identical
+03-detector glow.sql run, --jobs 1, glows.ndjson (60 lines): the same rows, numbers spelled apart
+    --- rust
+    +++ go
+    @@ -1,60 +1,60 @@
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":52,"h":240,"pts":0,"time":0.0}
+    -{"start_t":0.0,"id":0,"x":50,"y":0,"w":110,"h":240,"pts":4096,"time":0.06666666666666667}
+    -{"start_t":0.0,"id":0,"x":50,"y":0,"w":110,"h":240,"pts":8192,"time":0.13333333333333333}
+    -{"start_t":0.0,"id":0,"x":48,"y":0,"w":112,"h":240,"pts":12288,"time":0.2}
+    -{"start_t":0.0,"id":0,"x":42,"y":0,"w":118,"h":240,"pts":16384,"time":0.26666666666666666}
+    -{"start_t":0.0,"id":0,"x":40,"y":0,"w":120,"h":240,"pts":20480,"time":0.3333333333333333}
+    -{"start_t":0.0,"id":0,"x":40,"y":0,"w":120,"h":240,"pts":24576,"time":0.4}
+    -{"start_t":0.0,"id":0,"x":38,"y":0,"w":122,"h":240,"pts":28672,"time":0.4666666666666667}
+    -{"start_t":0.0,"id":0,"x":38,"y":0,"w":122,"h":240,"pts":32768,"time":0.5333333333333333}
+    -{"start_t":0.0,"id":0,"x":34,"y":0,"w":126,"h":240,"pts":36864,"time":0.6}
+    -{"start_t":0.0,"id":0,"x":34,"y":0,"w":126,"h":240,"pts":40960,"time":0.6666666666666666}
+    -{"start_t":0.0,"id":0,"x":30,"y":0,"w":130,"h":240,"pts":45056,"time":0.7333333333333333}
+    -{"start_t":0.0,"id":0,"x":30,"y":0,"w":130,"h":240,"pts":49152,"time":0.8}
+    -{"start_t":0.0,"id":0,"x":28,"y":0,"w":132,"h":240,"pts":53248,"time":0.8666666666666667}
+    -{"start_t":0.0,"id":0,"x":27,"y":0,"w":133,"h":240,"pts":57344,"time":0.9333333333333333}
+    -{"start_t":0.0,"id":0,"x":25,"y":0,"w":135,"h":240,"pts":61440,"time":1.0}
+    -{"start_t":0.0,"id":0,"x":23,"y":0,"w":137,"h":240,"pts":65536,"time":1.0666666666666667}
+    -{"start_t":0.0,"id":0,"x":22,"y":0,"w":138,"h":240,"pts":69632,"time":1.1333333333333333}
+    -{"start_t":0.0,"id":0,"x":19,"y":0,"w":141,"h":240,"pts":73728,"time":1.2}
+    -{"start_t":0.0,"id":0,"x":19,"y":0,"w":141,"h":240,"pts":77824,"time":1.2666666666666666}
+    -{"start_t":0.0,"id":0,"x":12,"y":0,"w":148,"h":240,"pts":81920,"time":1.3333333333333333}
+    -{"start_t":0.0,"id":0,"x":13,"y":0,"w":147,"h":240,"pts":86016,"time":1.4}
+    -{"start_t":0.0,"id":0,"x":12,"y":0,"w":148,"h":240,"pts":90112,"time":1.4666666666666666}
+    -{"start_t":0.0,"id":0,"x":11,"y":0,"w":149,"h":240,"pts":94208,"time":1.5333333333333334}
+    -{"start_t":0.0,"id":0,"x":10,"y":0,"w":150,"h":240,"pts":98304,"time":1.6}
+    -{"start_t":0.0,"id":0,"x":9,"y":0,"w":151,"h":240,"pts":102400,"time":1.6666666666666667}
+    -{"start_t":0.0,"id":0,"x":6,"y":0,"w":154,"h":240,"pts":106496,"time":1.7333333333333334}
+    -{"start_t":0.0,"id":0,"x":2,"y":0,"w":158,"h":240,"pts":110592,"time":1.8}
+    -{"start_t":0.0,"id":0,"x":0,"y":0,"w":160,"h":240,"pts":114688,"time":1.8666666666666667}
+    -{"start_t":0.0,"id":0,"x":0,"y":0,"w":160,"h":240,"pts":118784,"time":1.9333333333333333}
+    -{"start_t":0.0,"id":0,"x":0,"y":0,"w":160,"h":240,"pts":122880,"time":2.0}
+    -{"start_t":0.0,"id":0,"x":0,"y":0,"w":320,"h":240,"pts":126976,"time":2.066666666666667}
+    -{"start_t":0.0,"id":0,"x":0,"y":0,"w":320,"h":240,"pts":131072,"time":2.1333333333333333}
+    -{"start_t":0.0,"id":0,"x":0,"y":0,"w":320,"h":240,"pts":135168,"time":2.2}
+    -{"start_t":0.0,"id":0,"x":0,"y":0,"w":320,"h":240,"pts":139264,"time":2.2666666666666666}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":210,"h":240,"pts":143360,"time":2.3333333333333335}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":208,"h":240,"pts":147456,"time":2.4}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":206,"h":240,"pts":151552,"time":2.466666666666667}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":205,"h":240,"pts":155648,"time":2.533333333333333}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":204,"h":240,"pts":159744,"time":2.6}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":204,"h":240,"pts":163840,"time":2.6666666666666665}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":200,"h":240,"pts":167936,"time":2.7333333333333334}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":200,"h":240,"pts":172032,"time":2.8}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":198,"h":240,"pts":176128,"time":2.8666666666666667}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":198,"h":240,"pts":180224,"time":2.933333333333333}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":194,"h":240,"pts":184320,"time":3.0}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":190,"h":240,"pts":188416,"time":3.066666666666667}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":188,"h":240,"pts":192512,"time":3.1333333333333333}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":186,"h":240,"pts":196608,"time":3.2}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":186,"h":240,"pts":200704,"time":3.2666666666666666}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":184,"h":240,"pts":204800,"time":3.3333333333333335}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":182,"h":240,"pts":208896,"time":3.4}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":179,"h":240,"pts":212992,"time":3.466666666666667}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":180,"h":240,"pts":217088,"time":3.533333333333333}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":178,"h":240,"pts":221184,"time":3.6}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":178,"h":240,"pts":225280,"time":3.6666666666666665}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":174,"h":240,"pts":229376,"time":3.7333333333333334}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":171,"h":240,"pts":233472,"time":3.8}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":171,"h":240,"pts":237568,"time":3.8666666666666667}
+    -{"start_t":0.0,"id":0,"x":108,"y":0,"w":170,"h":240,"pts":241664,"time":3.933333333333333}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":52,"h":240,"pts":0,"time":0.0}
+    +{"start_t":0,"id":0,"x":50,"y":0,"w":110,"h":240,"pts":4096,"time":0.06666666666666667}
+    +{"start_t":0,"id":0,"x":50,"y":0,"w":110,"h":240,"pts":8192,"time":0.13333333333333333}
+    +{"start_t":0,"id":0,"x":48,"y":0,"w":112,"h":240,"pts":12288,"time":0.2}
+    +{"start_t":0,"id":0,"x":42,"y":0,"w":118,"h":240,"pts":16384,"time":0.26666666666666666}
+    +{"start_t":0,"id":0,"x":40,"y":0,"w":120,"h":240,"pts":20480,"time":0.3333333333333333}
+    +{"start_t":0,"id":0,"x":40,"y":0,"w":120,"h":240,"pts":24576,"time":0.4}
+    +{"start_t":0,"id":0,"x":38,"y":0,"w":122,"h":240,"pts":28672,"time":0.4666666666666667}
+    +{"start_t":0,"id":0,"x":38,"y":0,"w":122,"h":240,"pts":32768,"time":0.5333333333333333}
+    +{"start_t":0,"id":0,"x":34,"y":0,"w":126,"h":240,"pts":36864,"time":0.6}
+    +{"start_t":0,"id":0,"x":34,"y":0,"w":126,"h":240,"pts":40960,"time":0.6666666666666666}
+    +{"start_t":0,"id":0,"x":30,"y":0,"w":130,"h":240,"pts":45056,"time":0.7333333333333333}
+    +{"start_t":0,"id":0,"x":30,"y":0,"w":130,"h":240,"pts":49152,"time":0.8}
+    +{"start_t":0,"id":0,"x":28,"y":0,"w":132,"h":240,"pts":53248,"time":0.8666666666666667}
+    +{"start_t":0,"id":0,"x":27,"y":0,"w":133,"h":240,"pts":57344,"time":0.9333333333333333}
+    +{"start_t":0,"id":0,"x":25,"y":0,"w":135,"h":240,"pts":61440,"time":1.0}
+    +{"start_t":0,"id":0,"x":23,"y":0,"w":137,"h":240,"pts":65536,"time":1.0666666666666667}
+    +{"start_t":0,"id":0,"x":22,"y":0,"w":138,"h":240,"pts":69632,"time":1.1333333333333333}
+    +{"start_t":0,"id":0,"x":19,"y":0,"w":141,"h":240,"pts":73728,"time":1.2}
+    +{"start_t":0,"id":0,"x":19,"y":0,"w":141,"h":240,"pts":77824,"time":1.2666666666666666}
+    +{"start_t":0,"id":0,"x":12,"y":0,"w":148,"h":240,"pts":81920,"time":1.3333333333333333}
+    +{"start_t":0,"id":0,"x":13,"y":0,"w":147,"h":240,"pts":86016,"time":1.4}
+    +{"start_t":0,"id":0,"x":12,"y":0,"w":148,"h":240,"pts":90112,"time":1.4666666666666666}
+    +{"start_t":0,"id":0,"x":11,"y":0,"w":149,"h":240,"pts":94208,"time":1.5333333333333334}
+    +{"start_t":0,"id":0,"x":10,"y":0,"w":150,"h":240,"pts":98304,"time":1.6}
+    +{"start_t":0,"id":0,"x":9,"y":0,"w":151,"h":240,"pts":102400,"time":1.6666666666666667}
+    +{"start_t":0,"id":0,"x":6,"y":0,"w":154,"h":240,"pts":106496,"time":1.7333333333333334}
+    +{"start_t":0,"id":0,"x":2,"y":0,"w":158,"h":240,"pts":110592,"time":1.8}
+    +{"start_t":0,"id":0,"x":0,"y":0,"w":160,"h":240,"pts":114688,"time":1.8666666666666667}
+    +{"start_t":0,"id":0,"x":0,"y":0,"w":160,"h":240,"pts":118784,"time":1.9333333333333333}
+    +{"start_t":0,"id":0,"x":0,"y":0,"w":160,"h":240,"pts":122880,"time":2.0}
+    +{"start_t":0,"id":0,"x":0,"y":0,"w":320,"h":240,"pts":126976,"time":2.066666666666667}
+    +{"start_t":0,"id":0,"x":0,"y":0,"w":320,"h":240,"pts":131072,"time":2.1333333333333333}
+    +{"start_t":0,"id":0,"x":0,"y":0,"w":320,"h":240,"pts":135168,"time":2.2}
+    +{"start_t":0,"id":0,"x":0,"y":0,"w":320,"h":240,"pts":139264,"time":2.2666666666666666}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":210,"h":240,"pts":143360,"time":2.3333333333333335}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":208,"h":240,"pts":147456,"time":2.4}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":206,"h":240,"pts":151552,"time":2.466666666666667}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":205,"h":240,"pts":155648,"time":2.533333333333333}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":204,"h":240,"pts":159744,"time":2.6}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":204,"h":240,"pts":163840,"time":2.6666666666666665}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":200,"h":240,"pts":167936,"time":2.7333333333333334}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":200,"h":240,"pts":172032,"time":2.8}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":198,"h":240,"pts":176128,"time":2.8666666666666667}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":198,"h":240,"pts":180224,"time":2.933333333333333}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":194,"h":240,"pts":184320,"time":3.0}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":190,"h":240,"pts":188416,"time":3.066666666666667}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":188,"h":240,"pts":192512,"time":3.1333333333333333}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":186,"h":240,"pts":196608,"time":3.2}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":186,"h":240,"pts":200704,"time":3.2666666666666666}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":184,"h":240,"pts":204800,"time":3.3333333333333335}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":182,"h":240,"pts":208896,"time":3.4}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":179,"h":240,"pts":212992,"time":3.466666666666667}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":180,"h":240,"pts":217088,"time":3.533333333333333}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":178,"h":240,"pts":221184,"time":3.6}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":178,"h":240,"pts":225280,"time":3.6666666666666665}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":174,"h":240,"pts":229376,"time":3.7333333333333334}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":171,"h":240,"pts":233472,"time":3.8}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":171,"h":240,"pts":237568,"time":3.8666666666666667}
+    +{"start_t":0,"id":0,"x":108,"y":0,"w":170,"h":240,"pts":241664,"time":3.933333333333333}
+03-detector spans.sql run, --jobs 1, spans.ndjson (1 lines): identical
+04-reader band.sql run, --jobs 1, banded.mp4 (60 lines): identical
+04-reader boxmask.sql run, --jobs 1, mask.mkv (60 lines): identical
+05-window level.sql run, --jobs 1, levels.mkv (77 lines): identical
+05-window still.sql run, --jobs 1, stills.ndjson (2 lines): the same rows, numbers spelled apart
+    --- rust
+    +++ go
+    @@ -1,2 +1,2 @@
+    -{"start_t":0.0,"end_t":2.0,"pts":0,"time":0.0}
+    -{"start_t":2.0,"end_t":3.933333333333333,"pts":122880,"time":2.0}
+    +{"start_t":0,"end_t":2,"pts":0,"time":0.0}
+    +{"start_t":2,"end_t":3.933333333333333,"pts":122880,"time":2.0}
+06-source bars.sql run, --jobs 1, bars.mp4 (150 lines): identical
+06-source beat.sql run, --jobs 1, beat.mp4 (10 lines): identical
+07-sink tally.sql run, --jobs 1, stdout (2 lines): identical
+07-sink encoded.sql run, --jobs 1, stdout (2 lines): identical
+08-held cutin.sql run, --jobs 1, cutin.mp4 (60 lines): identical
+08-held presence.sql run, --jobs 1, presence.ndjson (3 lines): the same rows, numbers spelled apart
+    --- rust
+    +++ go
+    @@ -1,2 +1,2 @@
+    -{"event":"coming","t":0.0,"at":1.0,"text":null,"pts":0,"time":0.0}
+    -{"event":"on","t":1.0,"at":1.0,"text":null,"pts":61440,"time":1.0}
+    +{"event":"coming","t":0,"at":1,"text":null,"pts":0,"time":0.0}
+    +{"event":"on","t":1,"at":1,"text":null,"pts":61440,"time":1.0}
+08-held mosaic.sql run, --jobs 1, mosaic.mp4 (60 lines): identical
+09-pure spans.sql run, --jobs 1, spans.ndjson (2 lines): identical
+09-pure spans.sql run, --jobs 4, spans.ndjson (2 lines): identical
+10-testing package compile: identical
