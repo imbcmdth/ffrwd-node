@@ -3,3 +3,4 @@
 node_modules/
 /js/build/
 /go/build/
+/js/wit/

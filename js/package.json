@@ -1,0 +1,44 @@
+{
+  "name": "@ffrwd/node",
+  "version": "0.2.0",
+  "description": "Write an ffrwd node module in JavaScript: a node defined as an object, and the bindings, params, time and emission glue around it.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imbcmdth/ffrwd-node.git",
+    "directory": "js"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./mock": "./src/mock.js",
+    "./build": "./src/build.js"
+  },
+  "files": [
+    "src",
+    "wit"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "example": "node tools/build-example.mjs",
+    "shape": "node tools/shape-example.mjs",
+    "check": "npm test && npm run example && npm run shape",
+    "prepack": "node tools/stage-wit.mjs"
+  },
+  "peerDependencies": {
+    "@bytecodealliance/componentize-js": ">=0.22.0",
+    "esbuild": ">=0.25.0"
+  },
+  "peerDependenciesMeta": {
+    "@bytecodealliance/componentize-js": {
+      "optional": true
+    },
+    "esbuild": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@bytecodealliance/componentize-js": "0.22.0",
+    "esbuild": "^0.25.0"
+  }
+}
