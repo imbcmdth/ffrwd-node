@@ -4,3 +4,5 @@ node_modules/
 /js/build/
 /go/build/
 /js/wit/
+docs/examples/**/Cargo.lock
+docs/examples/**/target/
