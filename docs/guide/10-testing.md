@@ -1,17 +1,20 @@
 # 10. Testing and shipping
 
-A node is tested on the machine it is written on, without a host and without
-media, and shipped as a package anyone can install. This chapter turns the
-package [chapter 1](01-first-node.md) starts from into `acme/levels`, whose
-node stretches a picture's levels, tests it, checks its shape from the
-command line and publishes it.
+A node is tested on the machine it is written on, without the host and
+without any media. The host is `ffrwd-wasm`, the program that runs a module
+beside ffmpeg. A node is shipped as a package that anyone can install. This
+chapter takes the package that [chapter 1](01-first-node.md) starts from and
+turns it into `acme/levels`, whose node stretches a picture's levels. The
+chapter then tests the node, checks the node's shape from the command line,
+and publishes the package.
 
 ## The node
 
-`levels` moves `black` to 0 and `white` to 255 and spreads everything
-between over the range. A call with `black` at or over `white` has no
-meaning, so the shape refuses it, and the query that makes such a call is
-refused when it compiles.
+`levels` moves the value `black` to 0 and the value `white` to 255, and
+spreads every value in between across that range. A call with `black` at or
+above `white` has no meaning. So the node's shape, which is the node's
+answer about its ports and clock for a given call, refuses such a call. A
+query that makes such a call is therefore refused when the query compiles.
 
 **Rust**
 
@@ -280,24 +283,31 @@ func main() {}
 
 ## The mock harness
 
-Everything but the bindings builds on the machine the node is written on, so
-its tests run with the language's own test runner. The SDK's mock harness
-opens a node the way the host does: it reads the params against the schema,
-asks the shape with the streams it is given and opens an instance on them.
-Each tick is built by hand:
+Everything in a module except the bindings to the host builds on the machine
+the node is written on. So the node's tests run with the language's own test
+runner. The SDK, which is the library the module is built with, includes a
+mock harness. The mock harness is a stand-in for the host, and opens a node
+the way the host does. The harness reads the params against the schema, asks
+the node for its shape with the streams the test gives it, and opens an
+instance of the node on those streams. An instance is one running copy of
+the node. The test builds each tick by hand, where a tick is one call to the
+node. A tick can carry:
 
-- frames with their bytes, their duration and the rows that arrive with
+- frames, with their bytes, their durations and the rows that arrive with
   them;
-- messages on a data input, and earlier rows on a state input;
+- messages on a data input, and the rows of earlier ticks on a state input,
+  which is an input whose rows the node keeps across ticks;
 - packets on a packets input;
-- a held input's feed record, and the feeds that ended;
-- the tick's ordinal, and whether it is the last.
+- a held input's feed record, and the list of feeds that ended;
+- the tick's ordinal, which is the tick's number in the run, and whether the
+  tick is the last one.
 
-A bound stream carries what the compiler would have known: its id, its
-format, its time base and, for the shape, its rate. Processing a tick hands
-back what the node emitted, port by port: new frames, frames handed on,
-messages and packets. The harness checks every emission as the host does, so
-a pts that goes back fails the test.
+Each stream the test binds carries what the compiler would have known about
+the stream: its id, its format, its time base and, for asking the shape, its
+rate. When the harness processes a tick, the harness returns what the node
+emitted, port by port: new frames, frames handed on, messages and packets.
+The harness checks every emission the way the host does. So a pts that goes
+backwards fails the test.
 
 **Rust**
 
@@ -554,9 +564,9 @@ go test ./...
 
 ## Shapes on the command line
 
-`ffrwd-wasm --shape` takes the inputs a call binds in two forms. The names
-alone bind one stream each, at no known rate; a name written again binds one
-more stream to that port:
+`ffrwd-wasm --shape` accepts the inputs that a call binds in two forms. In
+the first form, input names alone bind one stream each, with no known rate.
+Writing a name a second time binds one more stream to that port:
 
 **Rust**
 
@@ -582,7 +592,8 @@ $ ffrwd-wasm --shape build/levels.wasm --bound v
 $ ffrwd-wasm --shape build/levels.wasm --bound v
 ```
 
-The list the compiler passes gives every stream its rate:
+In the second form, the list that the compiler passes gives every stream its
+rate:
 
 **Rust**
 
@@ -608,7 +619,8 @@ $ ffrwd-wasm --shape build/levels.wasm --bound '[{"input":"v","streams":[{"rate"
 $ ffrwd-wasm --shape build/levels.wasm --bound '[{"input":"v","streams":[{"rate":{"num":25,"den":1}}]}]'
 ```
 
-`levels` does not turn on the rate, so both print the same shape:
+The shape of `levels` does not depend on the rate, so both forms print the
+same shape:
 
 ```json
 {
@@ -653,8 +665,8 @@ $ ffrwd-wasm --shape build/levels.wasm --bound '[{"input":"v","streams":[{"rate"
 }
 ```
 
-A node that counts in frames or samples does turn on it. `level`, from
-[chapter 5](05-window.md), refuses the names alone:
+The shape of a node that counts in frames or samples does depend on the
+rate. `level`, from [chapter 5](05-window.md), refuses names alone:
 
 **Rust**
 
@@ -684,8 +696,8 @@ $ ffrwd-wasm --shape build/level.wasm --bound a
 ffrwd-wasm: asking build/level.wasm for its shape: level refused the shape: level counts its window in samples, and the call gives `a` no sample rate
 ```
 
-`--params` gives a call's params, and a node's refusal comes back naming the
-node:
+`--params` gives the params of a call. When the node refuses the call, the
+refusal names the node:
 
 **Rust**
 
@@ -715,8 +727,9 @@ $ ffrwd-wasm --shape build/levels.wasm --params '{"black":200,"white":100}' --bo
 ffrwd-wasm: asking build/levels.wasm for its shape: levels refused the shape: levels needs `black` under `white`
 ```
 
-The compiler asks the same question for every call, so the query hears the
-refusal where the call is written:
+The compiler asks for the shape of every call in the same way. So the
+compiler reports the refusal at the place in the query where the call is
+written:
 
 ```sql
 CREATE FUNCTION levels(v video_stream, black number DEFAULT 16, white number DEFAULT 235)
@@ -736,15 +749,16 @@ error: line 6:10: UNSUPPORTED_SQL: levels(): the module 'levels.wasm' refused th
 
 ## The package
 
-The package around the node is chapter 1's, its export and recipe renamed to
-`levels`. It holds:
+The package around the node is the package from chapter 1, with its export
+and its recipe renamed to `levels`. The package holds:
 
 - `ffrwd.json`, the manifest;
-- `ffrwd.lock`, what the package installed, which nothing but `install`
-  writes;
+- `ffrwd.lock`, the record of what the package installed, which only
+  `install` writes;
 - the build files and the node's source;
 - `src/levels.sql`, which declares the module as the package's export;
-- `recipes/levels.sql`, a query that calls the export, run by name;
+- `recipes/levels.sql`, a recipe: a query that calls the export, and that
+  can be run by name;
 - `README.md`, which the registry shows;
 - `.ffrwdignore` and `.gitignore`.
 
@@ -806,7 +820,8 @@ $cxx -mexec-model=reactor -Wl,--gc-sections -Wl,--strip-all -o build/levels.wasm
 
 **JavaScript**
 
-Beside a `build.js` like chapter 1's:
+The package has a `build.js` like the one in chapter 1, beside this
+`package.json`:
 
 ```json
 {
@@ -830,7 +845,8 @@ Beside a `build.js` like chapter 1's:
 
 **Go**
 
-Beside a `build.sh` that runs chapter 1's `componentize-go` line:
+The package has a `build.sh` that runs the `componentize-go` command from
+chapter 1, beside this `go.mod`:
 
 ```
 module levels
@@ -842,7 +858,8 @@ require github.com/imbcmdth/ffrwd-node/go v0.2.0
 require go.bytecodealliance.org/pkg v0.2.2 // indirect
 ```
 
-The export names the built module by its path from the package's root:
+The export names the built module by the module's path from the root of the
+package:
 
 **Rust**
 
@@ -880,8 +897,8 @@ RETURNS video_stream
   AS 'build/levels.wasm', 'levels' LANGUAGE wasm;
 ```
 
-A recipe calls it by its full name, the package's two halves and the
-export's:
+A recipe calls the export by its full name, which is the two halves of the
+package's name followed by the export's name:
 
 ```sql
 -- Stretch a file's picture to full range, its audio carried through untouched.
@@ -893,11 +910,12 @@ COPY (
 ) TO :'dest'
 ```
 
-`ffrwd run levels -v source=in.mp4 -v dest=out.mp4` runs it from inside the
-package.
+Run from inside the package, `ffrwd run levels -v source=in.mp4 -v
+dest=out.mp4` runs the recipe.
 
-The manifest names the export and the recipe, depends on the interface the
-module speaks, and says how to test the package:
+The manifest names the export and the recipe, declares a dependency on the
+interface that the module uses to talk to the host, and says how to test the
+package:
 
 **Rust**
 
@@ -995,32 +1013,37 @@ module speaks, and says how to test the package:
 }
 ```
 
-`capabilities` lists what the module asks the host to grant: `nn` for a
-model, `http`, `udp`, `tcp`, `gpu`. `levels` asks for none. `test` is a
-command `ffrwd publish` runs before anything leaves the machine.
+`capabilities` lists what the module asks the host to grant: `nn` to run a
+model, `http`, `udp`, `tcp` and `gpu`. `levels` asks for none of them.
+`test` is a command that `ffrwd publish` runs before anything leaves the
+machine.
 
 ## Publishing
 
-`ffrwd login --token <token>` saves the token this machine publishes with.
-`ffrwd publish`, run anywhere inside the package, checks the package whole,
-on this machine, before it sends a byte:
+`ffrwd login --token <token>` saves the token that this machine publishes
+with. `ffrwd publish` can be run anywhere inside the package. Before `ffrwd
+publish` sends a single byte, it checks the whole package on this machine:
 
-- the manifest reads, and its name is one a package may have;
-- every export parses and defines what the manifest says it does;
+- the manifest can be read, and its name is a valid package name;
+- every export parses, and defines what the manifest says the export
+  defines;
 - every dependency resolves in the registry;
-- the host describes every module, and what each one uses, a model for one,
-  sets the version's capabilities;
-- every model pinned names an export one of the modules declares;
-- the manifest's `test` command runs, and its exit decides whether the
-  publish goes on. A manifest that declares none is not checked.
+- the host describes every module, and the capabilities of the version being
+  published are set from what each module uses, such as a model;
+- every pinned model names an export that one of the modules declares;
+- the manifest's `test` command runs, and the command's exit status decides
+  whether the publish goes on. A manifest that declares no `test` command
+  skips this check.
 
-Then it packs the package and sends it. The archive is the manifest, every
-file the manifest names, every module its exports declare, the README and
-the licence, and whatever the manifest's `files` adds. That is why the built
-module ships although `.ffrwdignore` names the directory it is built in: the
-module is the package, and the tree it was built from stays home.
+Then `ffrwd publish` packs the package and sends it. The archive holds the
+manifest, every file the manifest names, every module that the package's
+exports declare, the README, the licence, and whatever the manifest's
+`files` list adds. So the built module ships, even though `.ffrwdignore`
+names the directory the module is built in. The module is what the package
+delivers, and the rest of the tree the module was built from stays on this
+machine.
 
 A published version never changes. Publishing the same bytes again changes
-nothing; publishing different bytes under the same version is refused, so a
-change is a new version. `"private": true` in the manifest publishes the
-version private.
+nothing. Publishing different bytes under the same version is refused, so
+any change needs a new version. `"private": true` in the manifest publishes
+the version as private.
