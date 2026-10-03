@@ -1,0 +1,5 @@
+# Build input, and the output it produces. The one wasm the lib SQL names
+# ships out of build/ regardless; nothing else here belongs in the archive.
+build.sh
+src/*.cpp
+build/

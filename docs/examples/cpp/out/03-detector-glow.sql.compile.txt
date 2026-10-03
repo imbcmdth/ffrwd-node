@@ -1,0 +1,7 @@
+$ ffrwd compile -f glow.sql
+ffmpeg -i testsrc.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut pipe:1 | \
+  ffrwd-wasm -f nut -i pipe:0 -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -m glow=glow.wasm -filter_complex '[v=0:v]glow=threshold=230:gap=2[glows=out0]' \
+  -bound 'glow=[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]' -map '[out0]' \
+  -f ndjson glows.ndjson

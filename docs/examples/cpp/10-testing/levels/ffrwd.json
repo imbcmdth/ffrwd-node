@@ -1,0 +1,19 @@
+{
+  "name": "acme/levels",
+  "version": "0.1.0",
+  "lib": {
+    "levels": "src/levels.sql"
+  },
+  "bin": {
+    "levels": "recipes/levels.sql"
+  },
+  "dependencies": {
+    "ffrwd/wasm": "0.19.1"
+  },
+  "keywords": [
+    "levels",
+    "contrast"
+  ],
+  "capabilities": [],
+  "test": "sh build.sh test"
+}

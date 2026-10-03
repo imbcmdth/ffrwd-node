@@ -1,0 +1,2 @@
+$ ffrwd-wasm --shape build/level.wasm --bound a
+ffrwd-wasm: asking build/level.wasm for its shape: level refused the shape: level counts its window in samples, and the call gives `a` no sample rate

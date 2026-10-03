@@ -1,0 +1,15 @@
+$ ffrwd compile -f presence.sql
+# named pipes: sidecar0 reads ffmpeg0, ffmpeg1
+1. ffmpeg: ffmpeg -i av.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut \
+  '<named pipe ffmpeg0-sidecar0 src:p:v:0 write>'
+2. ffmpeg: ffmpeg -to 1.5 -i testsrc.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f \
+  nut '<named pipe ffmpeg1-sidecar0 src:c:v:0 write>'
+3. sidecar: ffrwd-wasm -f nut -i '<named pipe ffmpeg0-sidecar0 src:p:v:0 read>' -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -f nut -i '<named pipe ffmpeg1-sidecar0 src:c:v:0 read>' -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -m cutin=cutin.wasm -filter_complex \
+  '[v=0:v][feed=1:v]cutin=port=9000:lead=1:linger=0:timeout=1[presence=out0]' -bound \
+  'cutin=[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]},{"input":"feed","streams":[{"rate":{"num":15,"den":1}}]}]' \
+  -map '[out0]' -f ndjson presence.ndjson
+# this listing is not a shell command -- run the plan with `ffrwd run`
