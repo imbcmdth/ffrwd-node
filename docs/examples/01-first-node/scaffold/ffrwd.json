@@ -1,0 +1,15 @@
+{
+  "name": "acme/invert",
+  "version": "0.1.0",
+  "lib": {
+    "passthrough": "src/passthrough.sql"
+  },
+  "bin": {
+    "passthrough": "recipes/passthrough.sql"
+  },
+  "dependencies": {
+    "ffrwd/wasm": "0.19.1"
+  },
+  "keywords": [],
+  "capabilities": []
+}
