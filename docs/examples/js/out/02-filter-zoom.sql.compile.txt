@@ -1,0 +1,8 @@
+$ ffrwd compile -f zoom.sql
+ffmpeg -i av.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut pipe:1 | ffrwd-wasm \
+  -f nut -i pipe:0 -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -m zoom=zoom.wasm -filter_complex '[v=0:v]zoom=amount=3:x=0.25:y=0.5[v=out0]' -bound \
+  'zoom=[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]' -map '[out0]' -f nut \
+  pipe:1 | ffmpeg -i av.mp4 -f nut -analyzeduration 0 -fpsprobesize 3 -i pipe:0 -map \
+  1:v:0 -map 0:a:0 -c:0 libx264 -c:1 aac zoomed.mp4

@@ -1,0 +1,545 @@
+{
+  "language": "js",
+  "root": "docs/examples/js",
+  "blocks": [
+    {
+      "page": "01-first-node.md",
+      "template_line": 13,
+      "rust": "@toml 01-first-node/invert/Cargo.toml",
+      "js": [
+        {
+          "file": "01-first-node/invert/package.json",
+          "lines": "1-16",
+          "info": "json"
+        },
+        {
+          "file": "01-first-node/invert/build.js",
+          "lines": "1-3",
+          "info": "js"
+        }
+      ],
+      "note": "The package and its build script stand where Cargo.toml does; `build.js` is what `npm run build` runs."
+    },
+    {
+      "page": "01-first-node.md",
+      "template_line": 35,
+      "rust": "@rust 01-first-node/invert/src/lib.rs",
+      "js": [
+        {
+          "file": "01-first-node/invert/src/invert.js",
+          "lines": "1-31",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "01-first-node.md",
+      "template_line": 50,
+      "rust": "cargo build --target wasm32-wasip2 --release (under **Rust**)",
+      "js": [
+        {
+          "text": "npm install\nnpm run build",
+          "info": ""
+        }
+      ],
+      "note": "The module is `build/invert.wasm`, where the Rust one is `target/wasm32-wasip2/release/invert.wasm`."
+    },
+    {
+      "page": "01-first-node.md",
+      "template_line": 108,
+      "rust": "$ ffrwd init --rust --name acme/invert (under **Rust**)",
+      "js": [
+        {
+          "file": "01-first-node/scaffold/package.json",
+          "lines": "1-16",
+          "info": "json"
+        },
+        {
+          "file": "01-first-node/scaffold/build.js",
+          "lines": "1-3",
+          "info": "js"
+        },
+        {
+          "file": "01-first-node/scaffold/src/invert.js",
+          "lines": "1-26",
+          "info": "js"
+        }
+      ],
+      "note": "`ffrwd init` has no --js: 01-first-node/scaffold is what it would write, made by hand, beside the same ffrwd.json, ffrwd.lock, recipes/passthrough.sql and README; src/passthrough.sql names build/invert.wasm."
+    },
+    {
+      "page": "02-filter.md",
+      "template_line": 30,
+      "rust": "```toml ffrwd-frame = { git = ... } (under **Rust**)",
+      "js": [],
+      "note": "No dependency: the crop and the bilinear resize ffrwd-frame does for the Rust zoom are written out in src/zoom.js (taps, pass, resize), pass for pass in the same fixed point, so the pictures match to the byte."
+    },
+    {
+      "page": "02-filter.md",
+      "template_line": 34,
+      "rust": "@rust 02-filter/zoom/src/lib.rs",
+      "js": [
+        {
+          "file": "02-filter/zoom/src/zoom.js",
+          "lines": "1-126",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "02-filter.md",
+      "template_line": 77,
+      "rust": "@rust 02-filter/blend/src/lib.rs",
+      "js": [
+        {
+          "file": "02-filter/blend/src/blend.js",
+          "lines": "1-42",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "02-filter.md",
+      "template_line": 106,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/blend.wasm --bound v,over",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/blend.wasm --bound v,over",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "03-detector.md",
+      "template_line": 33,
+      "rust": "@rust 03-detector/glow/src/lib.rs 1-25",
+      "js": [
+        {
+          "file": "03-detector/glow/src/glow.js",
+          "lines": "1-3",
+          "info": "js"
+        }
+      ],
+      "note": "The row's fields as a description, from which the SDK writes the schema; params arrive as an object and the instance's state lives in what init answers, so neither has a declaration of its own."
+    },
+    {
+      "page": "03-detector.md",
+      "template_line": 37,
+      "rust": "@rust 03-detector/glow/src/lib.rs 42-85",
+      "js": [
+        {
+          "file": "03-detector/glow/src/glow.js",
+          "lines": "22-54",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "03-detector.md",
+      "template_line": 45,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/glow.wasm --bound v",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/glow.wasm --bound v",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "04-reader.md",
+      "template_line": 51,
+      "rust": "@rust 04-reader/band/src/lib.rs",
+      "js": [
+        {
+          "file": "04-reader/band/src/band.js",
+          "lines": "1-56",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "04-reader.md",
+      "template_line": 56,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/band.wasm --bound v,cues",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/band.wasm --bound v,cues",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "04-reader.md",
+      "template_line": 91,
+      "rust": "@rust 04-reader/boxmask/src/lib.rs",
+      "js": [
+        {
+          "file": "04-reader/boxmask/src/boxmask.js",
+          "lines": "1-41",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "04-reader.md",
+      "template_line": 97,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/boxmask.wasm --bound v,boxes",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/boxmask.wasm --bound v,boxes",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "05-window.md",
+      "template_line": 37,
+      "rust": "@rust 05-window/level/src/lib.rs",
+      "js": [
+        {
+          "file": "05-window/level/src/level.js",
+          "lines": "1-49",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "05-window.md",
+      "template_line": 41,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/level.wasm --params ... --bound ...",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/level.wasm --params '{\"window\":1,\"hop\":0.5}' --bound '[{\"input\":\"a\",\"streams\":[{\"rate\":{\"num\":44100,\"den\":1}}]}]'",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "05-window.md",
+      "template_line": 81,
+      "rust": "@rust 05-window/still/src/lib.rs",
+      "js": [
+        {
+          "file": "05-window/still/src/still.js",
+          "lines": "1-68",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "05-window.md",
+      "template_line": 89,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/still.wasm --params ... --bound ...",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/still.wasm --params '{\"longest\":2}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "06-source.md",
+      "template_line": 44,
+      "rust": "@rust 06-source/bars/src/lib.rs",
+      "js": [
+        {
+          "file": "06-source/bars/src/bars.js",
+          "lines": "1-54",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "06-source.md",
+      "template_line": 65,
+      "rust": "@rust 06-source/beat/src/lib.rs",
+      "js": [
+        {
+          "file": "06-source/beat/src/beat.js",
+          "lines": "1-43",
+          "info": "js"
+        },
+        {
+          "file": "06-source/beat/build.js",
+          "lines": "1-26",
+          "info": "js"
+        }
+      ],
+      "note": "beat's build.js keeps the clocks, which buildNode turns off: without them the wall clock aborts the module. Show it beside the node, or say so in a line."
+    },
+    {
+      "page": "06-source.md",
+      "template_line": 67,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/beat.wasm --params '{\"every\":0.5}'",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/beat.wasm --params '{\"every\":0.5}'",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "07-sink.md",
+      "template_line": 45,
+      "rust": "@rust 07-sink/tally/src/lib.rs",
+      "js": [
+        {
+          "file": "07-sink/tally/src/tally.js",
+          "lines": "1-55",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "07-sink.md",
+      "template_line": 50,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/tally.wasm --bound video,audio",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/tally.wasm --bound video,audio",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "07-sink.md",
+      "template_line": 60,
+      "rust": "$ ffrwd-wasm --describe target/wasm32-wasip2/release/tally.wasm",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --describe build/tally.wasm",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "08-held.md",
+      "template_line": 110,
+      "rust": "@rust 08-held/cutin/src/lib.rs",
+      "js": [
+        {
+          "file": "08-held/cutin/src/cutin.js",
+          "lines": "1-97",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "08-held.md",
+      "template_line": 114,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/cutin.wasm --params '{\"port\":9100}' --bound ...",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/cutin.wasm --params '{\"port\":9100}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "08-held.md",
+      "template_line": 152,
+      "rust": "@rust 08-held/mosaic/src/lib.rs",
+      "js": [
+        {
+          "file": "08-held/mosaic/src/mosaic.js",
+          "lines": "1-152",
+          "info": "js"
+        }
+      ],
+      "note": "The resize into each cell is the same Pillow bilinear zoom writes out, in place of ffrwd-frame."
+    },
+    {
+      "page": "08-held.md",
+      "template_line": 157,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/mosaic.wasm --params ... --bound v,v,v",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/mosaic.wasm --params '{\"columns\":3,\"width\":960,\"height\":240}' --bound v,v,v",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "09-pure.md",
+      "template_line": 40,
+      "rust": "@rust 03-detector/glow/src/lib.rs 87-129",
+      "js": [
+        {
+          "file": "03-detector/glow/test/glow.test.js",
+          "lines": "1-27",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "09-pure.md",
+      "template_line": 55,
+      "rust": "@rust 09-pure/glow/src/lib.rs 44-94",
+      "js": [
+        {
+          "file": "09-pure/glow/src/glow.js",
+          "lines": "22-64",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "09-pure.md",
+      "template_line": 67,
+      "rust": "@rust 09-pure/glow/src/lib.rs 96-154",
+      "js": [
+        {
+          "file": "09-pure/glow/test/glow.test.js",
+          "lines": "1-45",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "10-testing.md",
+      "template_line": 16,
+      "rust": "@rust 10-testing/levels/src/lib.rs 1-69",
+      "js": [
+        {
+          "file": "10-testing/levels/src/levels.js",
+          "lines": "1-42",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "10-testing.md",
+      "template_line": 39,
+      "rust": "@rust 10-testing/levels/src/lib.rs 71-120",
+      "js": [
+        {
+          "file": "10-testing/levels/test/levels.test.js",
+          "lines": "1-39",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "10-testing.md",
+      "template_line": 43,
+      "rust": "cargo test (under **Rust**)",
+      "js": [
+        {
+          "text": "npm test",
+          "info": ""
+        }
+      ],
+      "note": "npm test runs `node --test`, which finds test/*.test.js."
+    },
+    {
+      "page": "10-testing.md",
+      "template_line": 53,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound v",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/levels.wasm --bound v",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "10-testing.md",
+      "template_line": 59,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound '[...]'",
+      "js": [
+        {
+          "text": "$ ffrwd-wasm --shape build/levels.wasm --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":25,\"den\":1}}]}]'",
+          "info": ""
+        }
+      ]
+    },
+    {
+      "page": "10-testing.md",
+      "template_line": 98,
+      "rust": "@toml 10-testing/levels/Cargo.toml",
+      "js": [
+        {
+          "file": "10-testing/levels/package.json",
+          "lines": "1-17",
+          "info": "json"
+        },
+        {
+          "file": "10-testing/levels/build.js",
+          "lines": "1-3",
+          "info": "js"
+        }
+      ]
+    },
+    {
+      "page": "10-testing.md",
+      "template_line": 102,
+      "rust": "@sql 10-testing/levels/src/levels.sql",
+      "js": [
+        {
+          "file": "10-testing/levels/src/levels.sql",
+          "lines": "1-4",
+          "info": "sql"
+        }
+      ],
+      "note": "The same export, naming build/levels.wasm."
+    },
+    {
+      "page": "10-testing.md",
+      "template_line": 107,
+      "rust": "@sql 10-testing/levels/recipes/levels.sql",
+      "js": [
+        {
+          "file": "10-testing/levels/recipes/levels.sql",
+          "lines": "1-7",
+          "info": "sql"
+        }
+      ],
+      "note": "The same recipe, byte for byte."
+    },
+    {
+      "page": "10-testing.md",
+      "template_line": 115,
+      "rust": "@json-file 10-testing/levels/ffrwd.json",
+      "js": [
+        {
+          "file": "10-testing/levels/ffrwd.json",
+          "lines": "1-19",
+          "info": "json"
+        }
+      ],
+      "note": "The same manifest but its test, `npm test` for `cargo test`."
+    },
+    {
+      "page": "README.md",
+      "template_line": 43,
+      "rust": "**Rust** ffrwd-node and ffrwd-frame, and the rustup/cargo commands",
+      "js": [
+        {
+          "text": "npm install\nnpm run build",
+          "info": ""
+        }
+      ],
+      "note": "[@ffrwd/node](https://github.com/imbcmdth/ffrwd-node/tree/main/js), built with ComponentizeJS; no ffrwd-frame. Each example's package.json takes @ffrwd/node and its two build tools."
+    }
+  ],
+  "outputs": {
+    "note": "Every @out, @json and @lines directive names a file examples/js/out/ holds under the same name, recorded from the JavaScript modules. A command line in them names build/<module>.wasm where Rust's names target/wasm32-wasip2/release/<module>.wasm; compare.txt says, for each, whether the JSON or the run's product is the Rust one's."
+  },
+  "prose": [
+    {
+      "page": "01-first-node.md",
+      "text": "The module is `target/wasm32-wasip2/release/invert.wasm`.",
+      "js": "The module is `build/invert.wasm`."
+    },
+    {
+      "page": "01-first-node.md",
+      "text": "`ffrwd init --rust` writes a package whose module is ready to build",
+      "js": "ffrwd init has no --js; 01-first-node/scaffold is the same package written by hand."
+    },
+    {
+      "page": "10-testing.md",
+      "text": "the built module ships out of `target/` although `.ffrwdignore` names the directory",
+      "js": "build/ for JavaScript: its .ffrwdignore names build/, node_modules/ and the sources."
+    }
+  ]
+}

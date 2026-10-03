@@ -1,0 +1,36 @@
+$ ffrwd-wasm --describe build/tally.wasm
+{
+  "world": "node-module",
+  "name": "tally",
+  "version": "0.1.0",
+  "params_schema": {"additionalProperties": false, "properties": {}, "type": "object"},
+  "rows_schema": {
+    "properties": {
+      "bytes": {"type": "integer"},
+      "codec": {"type": "string"},
+      "keyframes": {"type": "integer"},
+      "packets": {"type": "integer"},
+      "port": {"type": "string"},
+      "seconds": {"type": "number"}
+    },
+    "required": ["port", "codec", "packets", "keyframes", "bytes", "seconds"],
+    "type": "object"
+  },
+  "pixel_formats": [],
+  "sample_formats": [],
+  "sample_rates": [],
+  "channel_counts": [],
+  "rows_language": [],
+  "packet_sink": false,
+  "packet_filter": false,
+  "source": false,
+  "rows_module": false,
+  "data_filter": false,
+  "inputs": 1,
+  "nn": false,
+  "http": false,
+  "udp": false,
+  "tcp": false,
+  "gpu": false,
+  "node": true
+}

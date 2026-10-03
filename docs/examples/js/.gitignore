@@ -1,0 +1,7 @@
+package-lock.json
+build/
+*/run/*.wasm
+*/run/*.mp4
+*/run/*.mkv
+*/run/*.ndjson
+*/run/*.png

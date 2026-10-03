@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "description": "The guide's examples in JavaScript: one install that every example below resolves.",
+  "type": "module",
+  "dependencies": {
+    "@ffrwd/node": "file:../../../js"
+  },
+  "devDependencies": {
+    "@bytecodealliance/componentize-js": "0.22.0",
+    "esbuild": "^0.25.0"
+  },
+  "overrides": {
+    "@bytecodealliance/jco": "1.32.1"
+  }
+}

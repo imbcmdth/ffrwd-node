@@ -1,0 +1,5 @@
+$ ffrwd explain --delays -f level.sql
+level: hopping 1 s every 0.5 s
+levels.mkv stream 0 (video): 0 s behind the source, waits 1 s
+levels.mkv stream 1 (audio): 0 s behind the source, waits 1 s
+levels.mkv stream 2 (subtitle): 1 s behind the source

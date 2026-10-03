@@ -1,0 +1,6 @@
+$ ffrwd compile -f level.sql
+ffmpeg -i av.mp4 -map 0:a:0 -c:0 pcm_f32le -f nut pipe:1 | ffrwd-wasm -f nut -i pipe:0 \
+  -m level=level.wasm -filter_complex '[a=0:a]level=window=1:hop=0.5[cues=out0]' \
+  -bound 'level=[{"input":"a","streams":[{"rate":{"num":44100,"den":1}}]}]' -map \
+  '[out0]' -f webvtt pipe:1 | ffmpeg -i av.mp4 -f webvtt -i pipe:0 -map 0:v:0 -map \
+  0:a:0 -map 1:s:0 -c:2 copy -c:0 copy -c:1 copy levels.mkv

@@ -1,0 +1,5 @@
+$ ffrwd explain --delays -f band.sql
+level: tumbling 2 s
+band: per-frame; cues by interval, at most 5 s
+banded.mp4 stream 0 (video): 2.5 s behind the source
+banded.mp4 stream 1 (audio): 0 s behind the source, waits 2.5 s
