@@ -59,8 +59,8 @@ A held input may name a param that carries a port number. A query can use
 such an input in two ways. If the query binds a stream to the input, the
 input reads that stream, and the host writes the port number it picked into
 the param. If the query gives only the port number, the input binds no
-stream. Instead, the host listens on that port on the loopback address from
-the moment the run starts. Whatever program connects to the port and writes
+stream. Instead, the host listens for a TCP connection on that port of the
+loopback address, 127.0.0.1, from the moment the run starts. Whatever program connects to the port and writes
 NUT with raw video and PCM sound becomes the input's source, for as long as
 the program stays connected. Each connection is one feed. If the held input
 is declared like another input, the host scales each connection's picture on
