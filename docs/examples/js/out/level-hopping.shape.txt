@@ -1,0 +1,41 @@
+$ ffrwd-wasm --shape build/level.wasm --params '{"window":1,"hop":0.5}' --bound '[{"input":"a","streams":[{"rate":{"num":44100,"den":1}}]}]'
+{
+  "bounded": true,
+  "clock": {"kind": "input", "port": "a"},
+  "inputs": [
+    {
+      "accepts": {
+        "channel_counts": [],
+        "codecs": [],
+        "like": null,
+        "pixel_formats": [],
+        "sample_formats": ["f32"],
+        "sample_rates": [],
+        "wants": "all"
+      },
+      "kind": "audio",
+      "many": false,
+      "name": "a",
+      "pairing": {"kind": "lockstep"},
+      "required": true,
+      "rows": "ignore",
+      "schema": null,
+      "stride": 22050,
+      "window": 44100
+    }
+  ],
+  "one_to_one": false,
+  "outputs": [
+    {
+      "format": {"codec": "json", "kind": "data"},
+      "kind": "data",
+      "latency": 0.0,
+      "name": "cues",
+      "row": null,
+      "schema": "{\"type\":\"object\",\"properties\":{\"start_t\":{\"type\":\"number\"},\"end_t\":{\"type\":\"number\"},\"text\":{\"type\":\"string\"}},\"required\":[\"start_t\",\"end_t\",\"text\"]}",
+      "time_base": null
+    }
+  ],
+  "pure": true,
+  "relation": []
+}

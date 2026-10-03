@@ -1,0 +1,13 @@
+$ ffrwd compile -f tally.sql
+# named pipes: sidecar0 reads ffmpeg0, ffmpeg0; ffmpeg0 feeds sidecar0, sidecar0
+1. ffmpeg: ffmpeg -i av.mp4 -map 0:v:0 -c:0 copy -f nut \
+  '<named pipe ffmpeg0-sidecar0 src:f:v:0 write>' -map 0:a:0 -c:0 copy -f nut \
+  '<named pipe ffmpeg0-sidecar0 src:f:a:0 write>'
+2. sidecar: ffrwd-wasm -f nut -i '<named pipe ffmpeg0-sidecar0 src:f:v:0 read>' -pad \
+  '{"row": 0, "rendition": {"name": "240p"}}' -f nut -i \
+  '<named pipe ffmpeg0-sidecar0 src:f:a:0 read>' -pad \
+  '{"row": 0, "rendition": {"name": "240p"}}' -m tally=tally.wasm -filter_complex \
+  '[video=0:v][audio=1:a]tally[@rows=out0]' -bound \
+  'tally=[{"input":"video","streams":[{"rate":{"num":15,"den":1}}]},{"input":"audio","streams":[{"rate":{"num":44100,"den":1}}]}]' \
+  -map '[out0]' -f ndjson pipe:1
+# this listing is not a shell command -- run the plan with `ffrwd run`

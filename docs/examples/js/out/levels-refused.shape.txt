@@ -1,0 +1,2 @@
+$ ffrwd-wasm --shape build/levels.wasm --params '{"black":200,"white":100}' --bound v
+ffrwd-wasm: asking build/levels.wasm for its shape: levels refused the shape: levels needs `black` under `white`

@@ -1,0 +1,10 @@
+$ ffrwd compile -f blend.sql
+ffmpeg -i testsrc.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut pipe:1 | \
+  ffrwd-wasm -f nut -i pipe:0 -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -m zoom=zoom.wasm -m blend=blend.wasm -filter_complex \
+  '[v=0:v]zoom=amount=4:x=0.5:y=0.5[v=n1];[v=0:v][over=n1]blend=mix=0.3[v=out0]' \
+  -bound 'zoom=[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]' -bound \
+  'blend=[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]},{"input":"over","streams":[{"rate":{"num":15,"den":1}}]}]' \
+  -map '[out0]' -f nut pipe:1 | ffmpeg -copyts -f nut -analyzeduration 0 -fpsprobesize \
+  3 -i pipe:0 -map 0:v:0 -c:0 libx264 blended.mp4
