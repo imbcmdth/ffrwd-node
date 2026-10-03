@@ -1,50 +1,66 @@
 # 4. A reader of rows
 
-A reader takes rows another node wrote and acts on them: draws boxes, blurs
-faces, shows captions. This chapter builds `band`, which darkens a band at
-the foot of the picture while a cue is showing and fades it in ahead of the
-cue, and `boxmask`, which turns boxes into a matte the size of the picture
-without reading a pixel of it.
+A reader is a node that takes rows another node wrote and acts on them. A
+reader might draw boxes, blur faces or show captions. This chapter builds
+two readers. `band` darkens a band across the bottom of the picture while a
+cue is showing, and fades the band in before the cue starts. `boxmask` turns
+boxes into a matte the size of the picture, without reading a single pixel
+of the picture.
 
 ## Pairing rows with the clock
 
-Every input that is not the clock says how it pairs with the clock. A data
-input pairs in one of two ways with a clock input:
+A node's clock is the input that decides when the node runs. The host, which
+is the program that runs the node, calls the node once per tick of the
+clock, and a tick is usually one frame of the clock input. Every input that
+is not the clock declares how its contents are paired with the clock's
+ticks. A data input, which carries rows, pairs with a clock input in one of
+two ways:
 
-- **Lockstep.** The rows stamped at exactly the clock's pts, frame for
-  frame. A detector's rows over the same picture pair this way.
-- **By interval.** Every message whose pts falls in the tick's interval,
-  from the tick's time to the next tick's. Rows on a clock of their own pair
-  this way: cues, a schedule, the words a recogniser heard.
+- **Lockstep.** The tick hands the rows stamped with exactly the clock
+  frame's pts, one frame at a time. The rows a detector writes about the
+  same picture pair this way.
+- **By interval.** The tick hands every message whose pts falls in the
+  tick's interval. The interval runs from the tick's time to the next tick's
+  time. Rows whose times do not follow the picture's frames pair this way:
+  cues, a schedule, the words a speech recogniser heard.
 
-A data input may also take its messages as they arrive, unpaired, which is a
-sink's way ([chapter 7](07-sink.md)). Pictures and sound held by time are
+A data input may also take its messages as they arrive, without pairing them
+to any tick. A sink reads its inputs this way ([chapter 7](07-sink.md)).
+Pictures and sound paired by time, called held inputs, are the subject of
 [chapter 8](08-held.md).
 
-An interval input holds the tick until its producer has said it has nothing
-more to send stamped in that interval. A producer says so with its progress,
-which the host sends down the edge after every tick. The input can also
-bound the wait: its latency is the most it waits, in seconds, counted on the
-clock input's own arrival. A message later than that comes with the next
-tick, and the run reports it.
+An input paired by interval holds back the tick until the node that produces
+the rows has said that it has nothing more to send stamped inside that
+interval. The producer says so with its progress, which is a time that the
+host sends from the producer to the reader after every tick of the producer.
+The input can also put a limit on the wait. The input's latency is the
+longest it waits, in seconds. The wait is measured on the clock input: once
+frames of the clock input have arrived `latency` seconds past the end of the
+interval, the host stops waiting. A message that arrives later than that
+comes with the next tick, and the run reports it as late.
 
-`ahead` widens the interval at its end. Messages stamped up to that many
-seconds past the interval come with it, for a node that has to act before a
-time: a fade that starts before its cue.
+`ahead` extends the interval at its end. Messages stamped up to `ahead`
+seconds past the end of the interval are handed with that interval. `ahead`
+serves a node that has to act before a given time, such as a fade that
+starts before its cue.
 
 ## Rows as state
 
-A cue that starts at one tick goes on showing at the next. A node that keeps
-rows across ticks declares the input as state. The SDK then hands each row
-to the node before the tick it arrives with, oldest first, and the node
-keeps what it needs.
+A cue that starts at one tick goes on showing at the next tick. A node that
+keeps rows across ticks declares the input as state. For a state input, the
+SDK, which is the library the module is built with, hands each row to the
+node before the tick that the row arrives with, oldest row first. The node
+keeps whatever it needs from the rows.
 
-State rows are also what lets such a node stay pure. When the host spreads
-the node over workers, each instance sees only some of the ticks. Before an
-instance's tick, the host hands it the rows of every tick it did not
-process, oldest first, and the SDK hands them to the node ahead of the
-tick's own. Every instance holds the same cues at the same tick, whichever
-ticks it ran.
+State rows also let a node that keeps rows stay pure. A pure node is one
+whose every tick depends only on what the host hands it for that tick. The
+host may spread a pure node over several worker threads, running one
+instance of the node on each. An instance is one running copy of the node,
+and each instance sees only some of the ticks. Before an instance runs a
+tick, the host hands the instance the rows of every tick that the instance
+did not process, oldest first. The SDK hands those rows to the node ahead of
+the tick's own rows. As a result, every instance holds the same cues at the
+same tick, whichever ticks the instance ran.
 
 ## band
 
@@ -403,8 +419,9 @@ func init() { node.Export(Definition) }
 func main() {}
 ```
 
-The cue input carries `ahead` from the call's `fade`, so a cue arrives a
-fade's length before it starts. Its shape:
+The input `cues` sets its `ahead` to the call's `fade` param, so each cue
+reaches the node one fade's length before the cue starts. The shape of the
+input:
 
 **Rust**
 
@@ -459,13 +476,14 @@ $ ffrwd-wasm --shape build/band.wasm --bound v,cues
 }
 ```
 
-Its rows' schema is the cue's own: `start_t`, `end_t` and `text`. A producer
-matches it when every field the schema names is among the producer's, with a
-type it takes. Fields beyond them pass by, so any rows carrying those three
-will do.
+The schema of the input's rows is the schema of a cue: `start_t`, `end_t`
+and `text`. A producer matches the schema when every field that the schema
+names is also one of the producer's fields, with a type that the schema
+accepts. Any other fields the producer writes are ignored. So any rows that
+carry those three fields will do.
 
-`level`, from [chapter 5](05-window.md), writes a cue for every two seconds
-of sound saying how loud it was:
+`level`, from [chapter 5](05-window.md), writes one cue for every two
+seconds of sound, saying how loud those two seconds were:
 
 ```sql
 CREATE FUNCTION level(a audio_stream, window number DEFAULT 2, hop number DEFAULT NULL)
@@ -495,7 +513,7 @@ ffmpeg -i av.mp4 -map 0:a:0 -map 0:v:0 -c:0 pcm_f32le -c:1 rawvideo -pix_fmt:1 r
   -fpsprobesize 3 -i pipe:0 -map 1:v:0 -map 0:a:0 -c:0 libx264 -c:1 aac banded.mp4
 ```
 
-`ffrwd explain --delays` says what each node waits for:
+`ffrwd explain --delays` shows what each node waits for:
 
 ```
 $ ffrwd explain --delays -f band.sql
@@ -505,18 +523,23 @@ banded.mp4 stream 0 (video): 2.5 s behind the source
 banded.mp4 stream 1 (audio): 0 s behind the source, waits 2.5 s
 ```
 
-`level` hears two seconds before it writes a cue for them, and `band` waits
-half a second past each tick for cues that start then. So the picture leaves
-two and a half seconds behind the source, and the sound written beside it
-waits as long at the muxer, which the plan sizes.
+`level` has to hear two seconds of sound before it writes the cue for those
+two seconds. `band` waits half a second past each tick for cues that start
+in that half second. So the picture leaves the plan two and a half seconds
+behind the source. The sound that is written beside the picture waits the
+same two and a half seconds at the muxer, and the plan sizes the muxer's
+wait to match.
 
 ## A picture read for its timing alone
 
-`boxmask` makes a gray matte, white inside each box and black elsewhere. It
-needs the picture's size and the time of each frame, and never a pixel. An
-input read for its timing alone says so. The host hands its frames' pts and
-durations and the stream's info, and no bytes. Fetching one of its frames,
-or handing it on, ends the run with the port named.
+`boxmask` makes a matte: a gray picture that is white inside each box and
+black everywhere else. `boxmask` needs the picture's size and the time of
+each frame, but never a pixel of the picture. An input that is read only for
+its timing declares so in the node's shape, which lists the node's ports and
+clock. For such an input, the host hands the node each frame's pts and
+duration and the stream's info, but no pixel bytes. If the node fetches a
+frame of that input, or hands a frame of that input on, the run ends with an
+error that names the port.
 
 **Rust**
 
@@ -787,9 +810,10 @@ func init() { node.Export(Definition) }
 func main() {}
 ```
 
-The rows are lockstep with the picture: `glow` stamps a row for a frame with
-that frame's pts. The output is like `v` with one field changed, its pixel
-format, so the matte is always the picture's size.
+The input `boxes` is lockstep with the picture, because `glow` stamps the
+row about a frame with that frame's pts. The output is declared like `v`
+with one field changed, the pixel format. So the matte always has the
+picture's size.
 
 **Rust**
 
@@ -831,11 +855,12 @@ $ ffrwd-wasm --shape build/boxmask.wasm --bound v,boxes
 {"kind": "like", "pixel_format": "gray", "port": "v", "sample_format": null}
 ```
 
-The compiler hands a timing input the stream in whatever format its source
-already has, scaled to 16x16 on the way out of ffmpeg, and tells the node
-the picture's own size. Where another node in the same host reads the same
-picture, as `glow` does here, the timing input binds that stream instead, so
-the picture crosses once:
+For an input read for its timing, the compiler leaves the stream in whatever
+format its source already has. The compiler has ffmpeg scale that stream to
+16x16 before ffmpeg sends it on, and tells the node the picture's real size.
+When another node in the same host reads the same picture, as `glow` does
+here, the timing input binds the stream that the other node reads instead.
+That way, the picture crosses from ffmpeg to the host only once:
 
 ```sql
 CREATE FUNCTION glow(v video_stream, threshold number DEFAULT 230, gap number DEFAULT 2)
@@ -865,7 +890,9 @@ ffmpeg -i testsrc.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut pipe:1 | \
   3 -i pipe:0 -map 0:v:0 -c:0 ffv1 mask.mkv
 ```
 
-`boxmask` names four fields, and `glow` writes six. Every field `boxmask`
-names is among `glow`'s with a type it takes, an `integer` being a `number`,
-so the call compiles. A field missing from the producer, or of another type,
-is refused at compile time, naming both ports.
+`boxmask` names four fields in the schema of its input, and `glow` writes
+six. Every field that `boxmask` names is one of `glow`'s fields, with a type
+that `boxmask` accepts: an `integer` counts as a `number`. So the call
+compiles. If the producer lacked a field that the reader names, or wrote
+that field with another type, the compiler would refuse the call, and the
+error would name both ports.
