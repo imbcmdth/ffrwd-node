@@ -1,6 +1,6 @@
 01-first-node/invert: invert.wasm built, 203060 bytes, 0 warnings
 01-first-node/scaffold: invert.wasm built, 203989 bytes, 0 warnings
-02-filter/zoom: zoom.wasm built, 217375 bytes, 0 warnings
+02-filter/zoom: zoom.wasm built, 218190 bytes, 0 warnings
 02-filter/blend: blend.wasm built, 210461 bytes, 0 warnings
 03-detector/glow: glow.wasm built, 220680 bytes, 0 warnings
 04-reader/band: band.wasm built, 228345 bytes, 0 warnings
@@ -11,7 +11,7 @@
 06-source/beat: beat.wasm built, 207978 bytes, 0 warnings
 07-sink/tally: tally.wasm built, 198295 bytes, 0 warnings
 08-held/cutin: cutin.wasm built, 235273 bytes, 0 warnings
-08-held/mosaic: mosaic.wasm built, 222069 bytes, 0 warnings
+08-held/mosaic: mosaic.wasm built, 222992 bytes, 0 warnings
 09-pure/glow: glow.wasm built, 219160 bytes, 0 warnings
 10-testing/levels: levels.wasm built, 209206 bytes, 0 warnings
 03-detector/glow: sh build.sh test, 1 run, 0 failed

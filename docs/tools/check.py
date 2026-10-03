@@ -26,7 +26,7 @@ GUIDE = DOCS / "guide"
 EXAMPLES = DOCS / "examples"
 REPO = DOCS.parent
 FORBIDDEN = ["0.18", "world", "adapt", "migrat", "used to", "trait", "struct", "closure"]
-SKIP = {"target", "build", "node_modules", "out", "common"}
+SKIP = {"target", "build", "node_modules", "out"}
 TEXT = {".rs", ".toml", ".cpp", ".hpp", ".js", ".go", ".mod", ".sum", ".json", ".sql", ".sh", ".md"}
 MODULE_PATH = re.compile(r"(target/wasm32-wasip2/release|build)/(\w+\.wasm)")
 

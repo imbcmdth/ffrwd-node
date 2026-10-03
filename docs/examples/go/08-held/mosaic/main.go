@@ -3,9 +3,15 @@ package main
 import (
 	"bytes"
 	"errors"
+	"math"
 
 	node "github.com/imbcmdth/ffrwd-node/go"
+	"github.com/imbcmdth/ffrwd-node/go/frame"
 )
+
+// eightBits is what frame.Planes divides by to hand back eight-bit values
+// unchanged.
+var eightBits = frame.Norm{Std: [3]float32{1.0 / 255, 1.0 / 255, 1.0 / 255}}
 
 var down = [4]byte{48, 48, 48, 255}
 
@@ -19,7 +25,7 @@ type Tile struct {
 	id     uint32
 	width  int
 	height int
-	cell   Rect
+	cell   frame.Rect
 }
 
 type Mosaic struct {
@@ -30,22 +36,26 @@ type Mosaic struct {
 
 // put is pixels, a tile's picture, resized into its cell of canvas.
 func (m *Mosaic) put(canvas []byte, tile Tile, pixels []byte) error {
-	w, h := tile.cell.Width(), tile.cell.Height()
-	whole := Whole(tile.width, tile.height)
-	rgb, err := resize(pixels, tile.width, tile.height, whole, w, h)
+	picture, err := frame.NewRgba(pixels, tile.width, tile.height)
 	if err != nil {
 		return err
 	}
+	w, h := tile.cell.Width(), tile.cell.Height()
+	whole := frame.Whole(tile.width, tile.height)
+	rgb := frame.Planes(picture, whole, w, h, frame.Bilinear, eightBits)
 	for y := range h {
 		for x := range w {
 			at := ((tile.cell.Y0+y)*m.width + tile.cell.X0 + x) * 4
-			copy(canvas[at:at+3], rgb[(y*w+x)*3:])
+			for channel := range 3 {
+				value := rgb[channel*w*h+y*w+x]
+				canvas[at+channel] = byte(min(max(math.Round(float64(value)), 0), 255))
+			}
 		}
 	}
 	return nil
 }
 
-func (m *Mosaic) fill(canvas []byte, cell Rect, colour [4]byte) {
+func (m *Mosaic) fill(canvas []byte, cell frame.Rect, colour [4]byte) {
 	for y := cell.Y0; y < cell.Y1; y++ {
 		row := canvas[(y*m.width+cell.X0)*4 : (y*m.width+cell.X1)*4]
 		for at := 0; at < len(row); at += 4 {
@@ -87,7 +97,7 @@ var Definition = node.Definition[Params]{
 				id:     stream.ID,
 				width:  int(video.Width),
 				height: int(video.Height),
-				cell: Rect{
+				cell: frame.Rect{
 					X0: column * width / columns,
 					Y0: row * height / rows,
 					X1: (column + 1) * width / columns,
@@ -103,10 +113,10 @@ func (m *Mosaic) Process(tick *node.Tick, out *node.Out) error {
 	canvas := bytes.Repeat([]byte{0, 0, 0, 255}, m.width*m.height)
 	shown := false
 	for _, tile := range m.tiles {
-		frame, ok := tick.Frame(tile.id)
+		in, ok := tick.Frame(tile.id)
 		switch {
 		case ok:
-			if err := m.put(canvas, tile, tick.Fetch(tile.id, frame.Index)); err != nil {
+			if err := m.put(canvas, tile, tick.Fetch(tile.id, in.Index)); err != nil {
 				return err
 			}
 			shown = true

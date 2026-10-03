@@ -23,7 +23,7 @@
           "```"
         ]
       },
-      "note": "Crops and resizes are the examples' own common/resize.hpp, a port of the ffrwd-frame bilinear."
+      "note": "Crops and resizes are the SDK's ffrwd/frame.hpp."
     },
     {
       "template": "01-first-node.md",
@@ -88,25 +88,19 @@
         "inline": "the ffrwd-frame line of Cargo.toml"
       },
       "cpp": {
-        "text": [
-          "#include \"resize.hpp\""
-        ],
-        "info": "cpp",
-        "also": {
-          "file": "cpp/02-filter/zoom/build.sh",
-          "lines": "17-17",
-          "info": "sh"
-        }
+        "file": "cpp/02-filter/zoom/src/zoom.cpp",
+        "lines": "5-5",
+        "info": "cpp"
       },
-      "note": "C++ has no ffrwd-frame: common/resize.hpp is the bilinear crop and resize written out, Pillow's as ffrwd-frame has it, and the build adds -I../../common."
+      "note": "The SDK's ffrwd/frame.hpp, ffrwd-frame's crop and bilinear for C++, on the include path the build already gives the SDK."
     },
     {
       "template": "02-filter.md",
-      "line": 34,
+      "line": 44,
       "rust": "@rust 02-filter/zoom/src/lib.rs",
       "cpp": {
         "file": "cpp/02-filter/zoom/src/zoom.cpp",
-        "lines": "1-82",
+        "lines": "1-88",
         "info": "cpp"
       }
     },
@@ -223,14 +217,13 @@
     },
     {
       "template": "08-held.md",
-      "line": 152,
+      "line": 156,
       "rust": "@rust 08-held/mosaic/src/lib.rs",
       "cpp": {
         "file": "cpp/08-held/mosaic/src/mosaic.cpp",
-        "lines": "1-107",
+        "lines": "1-115",
         "info": "cpp"
-      },
-      "note": "The resize into each cell is common/resize.hpp's bilinear, in place of ffrwd-frame's planes."
+      }
     },
     {
       "template": "09-pure.md",

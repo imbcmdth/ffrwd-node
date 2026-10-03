@@ -57,8 +57,8 @@ cargo build --target wasm32-wasip2 --release
 SDK](https://github.com/imbcmdth/ffrwd-node/tree/main/cpp), with
 [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases) 34 and
 [wit-bindgen](https://github.com/bytecodealliance/wit-bindgen/releases)
-0.57.1, `WASI_SDK` set to wasi-sdk's directory. The examples' crops and
-resizes are their own.
+0.57.1, `WASI_SDK` set to wasi-sdk's directory. Crops and resizes are its
+`ffrwd/frame.hpp`.
 
 ```
 sh build.sh modules    # in the SDK's cpp/, once
@@ -68,8 +68,8 @@ sh build.sh            # in the module's directory
 **JavaScript**
 
 [@ffrwd/node](https://github.com/imbcmdth/ffrwd-node/tree/main/js), built
-into a component with ComponentizeJS. The examples' crops and resizes are
-their own.
+into a component with ComponentizeJS. Crops and resizes are its
+`@ffrwd/node/frame`.
 
 ```
 npm install
@@ -79,8 +79,8 @@ npm run build
 **Go**
 
 [github.com/imbcmdth/ffrwd-node/go](https://github.com/imbcmdth/ffrwd-node/tree/main/go),
-with Go 1.25.5 or newer and componentize-go 0.4.1. The examples' crops and
-resizes are their own.
+with Go 1.25.5 or newer and componentize-go 0.4.1. Crops and resizes are
+its `frame` package.
 
 ```
 componentize-go -d "$(go list -m -f '{{.Dir}}' github.com/imbcmdth/ffrwd-node/go)/wit" \

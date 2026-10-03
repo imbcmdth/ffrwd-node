@@ -973,10 +973,16 @@ ffrwd_node::export!(Mosaic);
 ```cpp
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <vector>
 
+#include "ffrwd/frame.hpp"
 #include "ffrwd/node.hpp"
-#include "resize.hpp"
+
+using ffrwd::frame::Filter, ffrwd::frame::Norm, ffrwd::frame::planes, ffrwd::frame::Rect, ffrwd::frame::Rgba;
+
+/// What `planes` divides by to hand back eight-bit values unchanged.
+constexpr Norm EIGHT_BITS{{0.0f, 0.0f, 0.0f}, {1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f}};
 
 constexpr std::array<std::uint8_t, 4> DOWN{48, 48, 48, 255};
 
@@ -991,7 +997,7 @@ struct Tile {
     std::uint32_t id = 0;
     std::size_t width = 0;
     std::size_t height = 0;
-    resize::Rect cell;
+    Rect cell;
 };
 
 struct Mosaic : ffrwd::Node<Mosaic, Params> {
@@ -1006,20 +1012,22 @@ struct Mosaic : ffrwd::Node<Mosaic, Params> {
 
     /// `pixels`, a `tile`'s picture, resized into its cell of `canvas`.
     ffrwd::Status put(ffrwd::Bytes& canvas, const Tile& tile, const ffrwd::Bytes& pixels) const {
-        if (auto wrong = resize::misfit(pixels.size(), tile.width, tile.height)) return ffrwd::fail(*wrong);
+        FFRWD_LET(picture, Rgba::make(pixels, tile.width, tile.height));
         std::size_t w = tile.cell.width(), h = tile.cell.height();
-        auto whole = resize::Rect::whole(tile.width, tile.height);
-        auto rgb = resize::bilinear(pixels.data(), tile.width, tile.height, whole, w, h);
+        auto whole = Rect::whole(tile.width, tile.height);
+        auto rgb = planes(picture, whole, w, h, Filter::Bilinear, EIGHT_BITS);
         for (std::size_t y = 0; y < h; ++y)
             for (std::size_t x = 0; x < w; ++x) {
                 std::size_t at = ((tile.cell.y0 + y) * width + tile.cell.x0 + x) * 4;
-                for (std::size_t channel = 0; channel < 3; ++channel)
-                    canvas[at + channel] = rgb[(y * w + x) * 3 + channel];
+                for (std::size_t channel = 0; channel < 3; ++channel) {
+                    float value = rgb[channel * w * h + y * w + x];
+                    canvas[at + channel] = std::uint8_t(std::clamp(std::round(value), 0.0f, 255.0f));
+                }
             }
         return {};
     }
 
-    void fill(ffrwd::Bytes& canvas, resize::Rect cell, std::array<std::uint8_t, 4> colour) const {
+    void fill(ffrwd::Bytes& canvas, Rect cell, std::array<std::uint8_t, 4> colour) const {
         for (std::size_t y = cell.y0; y < cell.y1; ++y)
             for (std::size_t x = cell.x0; x < cell.x1; ++x)
                 std::copy(colour.begin(), colour.end(), canvas.data() + (y * width + x) * 4);
@@ -1084,77 +1092,12 @@ FFRWD_EXPORT(Mosaic);
 
 ```js
 import { Anchor, defineNode, Input, Output, Shape } from '@ffrwd/node';
+import { Filter, planes, Rect, Rgba } from '@ffrwd/node/frame';
+
+/** What `planes` divides by to hand back eight-bit values unchanged. */
+const EIGHT_BITS = { mean: [0, 0, 0], std: [1 / 255, 1 / 255, 1 / 255] };
 
 const DOWN = [48, 48, 48, 255];
-
-// Pillow's bilinear resize, written out here: it works in the same fixed
-// point, pass for pass, as the ffrwd-frame crate the Rust example calls, so
-// both modules make the same picture to the byte.
-
-/** For each of `size` pixels made from `from`: the first pixel it reads, and
- * its weights in fixed point with `bits` fractional bits. */
-function taps(from, size) {
-  const scale = from / size;
-  const stretch = Math.max(scale, 1);
-  const kernels = [];
-  for (let at = 0; at < size; at += 1) {
-    const centre = (at + 0.5) * scale;
-    let first = Math.max(Math.floor(centre - stretch), 0);
-    const end = Math.min(Math.ceil(centre + stretch), from);
-    const weights = [];
-    for (let x = first; x < end; x += 1) {
-      const weight = Math.max(0, 1 - Math.abs((x - (centre - 0.5)) * (1 / stretch)));
-      if (weight === 0 && weights.length === 0) first += 1;
-      else weights.push(weight);
-    }
-    const sum = weights.reduce((total, weight) => total + weight, 0);
-    while (weights.at(-1) === 0) weights.pop();
-    kernels.push({ first, weights: weights.map((weight) => (sum === 0 ? weight : weight / sum)) });
-  }
-  const most = Math.max(0, ...kernels.flatMap((kernel) => kernel.weights));
-  let bits = 0;
-  while (bits < 21 && Math.round(most * 2 ** (bits + 1)) < 2 ** 15) bits += 1;
-  for (const kernel of kernels) kernel.weights = kernel.weights.map((weight) => Math.round(weight * 2 ** bits));
-  return { kernels, bits };
-}
-
-/** `size` pixels across (or down) made from each row (or column) of an rgb
- * picture `width` x `height`, rounded back to eight bits. */
-function pass(rgb, width, height, size, across) {
-  const { kernels, bits } = taps(across ? width : height, size);
-  const [w, h] = across ? [size, height] : [width, size];
-  const out = new Uint8Array(w * h * 3);
-  for (let y = 0; y < h; y += 1) {
-    for (let x = 0; x < w; x += 1) {
-      const { first, weights } = kernels[across ? x : y];
-      for (let channel = 0; channel < 3; channel += 1) {
-        let sum = 1 << (bits - 1);
-        for (let n = 0; n < weights.length; n += 1) {
-          const at = across ? (y * width + first + n) * 3 : ((first + n) * width + x) * 3;
-          sum += rgb[at + channel] * weights[n];
-        }
-        out[(y * w + x) * 3 + channel] = Math.min(Math.max(sum >> bits, 0), 255);
-      }
-    }
-  }
-  return out;
-}
-
-/** `rect` of an rgba picture `stride` pixels wide, resized to `width` x
- * `height`: across first, then down, as Pillow does. Red, green and blue. */
-function resize(pixels, stride, rect, width, height) {
-  let [w, h] = [rect.x1 - rect.x0, rect.y1 - rect.y0];
-  let rgb = new Uint8Array(w * h * 3);
-  for (let y = 0; y < h; y += 1) {
-    for (let x = 0; x < w; x += 1) {
-      const [from, to] = [((rect.y0 + y) * stride + rect.x0 + x) * 4, (y * w + x) * 3];
-      for (let channel = 0; channel < 3; channel += 1) rgb[to + channel] = pixels[from + channel];
-    }
-  }
-  if (w !== width) [rgb, w] = [pass(rgb, w, h, width, true), width];
-  if (h !== height) [rgb, h] = [pass(rgb, w, h, height, false), height];
-  return rgb;
-}
 
 /** Every pixel of `cell` of a `width`-wide canvas set to `colour`. */
 function fill(canvas, width, cell, colour) {
@@ -1166,14 +1109,18 @@ function fill(canvas, width, cell, colour) {
 /** `pixels`, a `tile`'s picture, resized into its cell of a `width`-wide
  * canvas. */
 function put(canvas, width, tile, pixels) {
+  const picture = new Rgba(pixels, tile.width, tile.height);
   const { cell } = tile;
-  const [w, h] = [cell.x1 - cell.x0, cell.y1 - cell.y0];
-  const whole = { x0: 0, y0: 0, x1: tile.width, y1: tile.height };
-  const rgb = resize(pixels, tile.width, whole, w, h);
+  const [w, h] = [cell.width(), cell.height()];
+  const whole = Rect.whole(tile.width, tile.height);
+  const rgb = planes(picture, whole, w, h, Filter.Bilinear, EIGHT_BITS);
   for (let y = 0; y < h; y += 1) {
     for (let x = 0; x < w; x += 1) {
-      const [from, to] = [(y * w + x) * 3, ((cell.y0 + y) * width + cell.x0 + x) * 4];
-      for (let channel = 0; channel < 3; channel += 1) canvas[to + channel] = rgb[from + channel];
+      const at = ((cell.y0 + y) * width + cell.x0 + x) * 4;
+      for (let channel = 0; channel < 3; channel += 1) {
+        const value = rgb[channel * w * h + y * w + x];
+        canvas[at + channel] = Math.min(Math.max(Math.round(value), 0), 255);
+      }
     }
   }
 }
@@ -1206,15 +1153,15 @@ export const node = defineNode({
         id: stream.id,
         width: video.width,
         height: video.height,
-        cell: {
-          x0: Math.floor((column * width) / columns),
-          y0: Math.floor((row * height) / rows),
-          x1: Math.floor(((column + 1) * width) / columns),
-          y1: Math.floor(((row + 1) * height) / rows),
-        },
+        cell: new Rect(
+          Math.floor((column * width) / columns),
+          Math.floor((row * height) / rows),
+          Math.floor(((column + 1) * width) / columns),
+          Math.floor(((row + 1) * height) / rows),
+        ),
       };
     });
-    const whole = { x0: 0, y0: 0, x1: width, y1: height };
+    const whole = Rect.whole(width, height);
     return {
       process(tick, out) {
         const canvas = new Uint8Array(width * height * 4);
@@ -1245,9 +1192,15 @@ package main
 import (
 	"bytes"
 	"errors"
+	"math"
 
 	node "github.com/imbcmdth/ffrwd-node/go"
+	"github.com/imbcmdth/ffrwd-node/go/frame"
 )
+
+// eightBits is what frame.Planes divides by to hand back eight-bit values
+// unchanged.
+var eightBits = frame.Norm{Std: [3]float32{1.0 / 255, 1.0 / 255, 1.0 / 255}}
 
 var down = [4]byte{48, 48, 48, 255}
 
@@ -1261,7 +1214,7 @@ type Tile struct {
 	id     uint32
 	width  int
 	height int
-	cell   Rect
+	cell   frame.Rect
 }
 
 type Mosaic struct {
@@ -1272,22 +1225,26 @@ type Mosaic struct {
 
 // put is pixels, a tile's picture, resized into its cell of canvas.
 func (m *Mosaic) put(canvas []byte, tile Tile, pixels []byte) error {
-	w, h := tile.cell.Width(), tile.cell.Height()
-	whole := Whole(tile.width, tile.height)
-	rgb, err := resize(pixels, tile.width, tile.height, whole, w, h)
+	picture, err := frame.NewRgba(pixels, tile.width, tile.height)
 	if err != nil {
 		return err
 	}
+	w, h := tile.cell.Width(), tile.cell.Height()
+	whole := frame.Whole(tile.width, tile.height)
+	rgb := frame.Planes(picture, whole, w, h, frame.Bilinear, eightBits)
 	for y := range h {
 		for x := range w {
 			at := ((tile.cell.Y0+y)*m.width + tile.cell.X0 + x) * 4
-			copy(canvas[at:at+3], rgb[(y*w+x)*3:])
+			for channel := range 3 {
+				value := rgb[channel*w*h+y*w+x]
+				canvas[at+channel] = byte(min(max(math.Round(float64(value)), 0), 255))
+			}
 		}
 	}
 	return nil
 }
 
-func (m *Mosaic) fill(canvas []byte, cell Rect, colour [4]byte) {
+func (m *Mosaic) fill(canvas []byte, cell frame.Rect, colour [4]byte) {
 	for y := cell.Y0; y < cell.Y1; y++ {
 		row := canvas[(y*m.width+cell.X0)*4 : (y*m.width+cell.X1)*4]
 		for at := 0; at < len(row); at += 4 {
@@ -1329,7 +1286,7 @@ var Definition = node.Definition[Params]{
 				id:     stream.ID,
 				width:  int(video.Width),
 				height: int(video.Height),
-				cell: Rect{
+				cell: frame.Rect{
 					X0: column * width / columns,
 					Y0: row * height / rows,
 					X1: (column + 1) * width / columns,
@@ -1345,10 +1302,10 @@ func (m *Mosaic) Process(tick *node.Tick, out *node.Out) error {
 	canvas := bytes.Repeat([]byte{0, 0, 0, 255}, m.width*m.height)
 	shown := false
 	for _, tile := range m.tiles {
-		frame, ok := tick.Frame(tile.id)
+		in, ok := tick.Frame(tile.id)
 		switch {
 		case ok:
-			if err := m.put(canvas, tile, tick.Fetch(tile.id, frame.Index)); err != nil {
+			if err := m.put(canvas, tile, tick.Fetch(tile.id, in.Index)); err != nil {
 				return err
 			}
 			shown = true

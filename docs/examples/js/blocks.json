@@ -69,19 +69,25 @@
     },
     {
       "page": "02-filter.md",
-      "template_line": 30,
+      "template_line": 28,
       "rust": "```toml ffrwd-frame = { git = ... } (under **Rust**)",
-      "js": [],
-      "note": "No dependency: the crop and the bilinear resize ffrwd-frame does for the Rust zoom are written out in src/zoom.js (taps, pass, resize), pass for pass in the same fixed point, so the pictures match to the byte."
+      "js": [
+        {
+          "file": "02-filter/zoom/src/zoom.js",
+          "lines": "2-2",
+          "info": "js"
+        }
+      ],
+      "note": "The SDK's @ffrwd/node/frame, ffrwd-frame's crop and bilinear for JavaScript."
     },
     {
       "page": "02-filter.md",
-      "template_line": 34,
+      "template_line": 44,
       "rust": "@rust 02-filter/zoom/src/lib.rs",
       "js": [
         {
           "file": "02-filter/zoom/src/zoom.js",
-          "lines": "1-126",
+          "lines": "1-63",
           "info": "js"
         }
       ]
@@ -337,16 +343,15 @@
     },
     {
       "page": "08-held.md",
-      "template_line": 152,
+      "template_line": 156,
       "rust": "@rust 08-held/mosaic/src/lib.rs",
       "js": [
         {
           "file": "08-held/mosaic/src/mosaic.js",
-          "lines": "1-152",
+          "lines": "1-91",
           "info": "js"
         }
-      ],
-      "note": "The resize into each cell is the same Pillow bilinear zoom writes out, in place of ffrwd-frame."
+      ]
     },
     {
       "page": "08-held.md",
@@ -519,7 +524,7 @@
           "info": ""
         }
       ],
-      "note": "[@ffrwd/node](https://github.com/imbcmdth/ffrwd-node/tree/main/js), built with ComponentizeJS; no ffrwd-frame. Each example's package.json takes @ffrwd/node and its two build tools."
+      "note": "[@ffrwd/node](https://github.com/imbcmdth/ffrwd-node/tree/main/js), built with ComponentizeJS; crops and resizes are its @ffrwd/node/frame. Each example's package.json takes @ffrwd/node and its two build tools."
     }
   ],
   "outputs": {

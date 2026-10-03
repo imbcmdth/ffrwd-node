@@ -14,6 +14,6 @@ wasi=${WASI_SDK:?set WASI_SDK to your wasi-sdk}
 cxx="$wasi/bin/clang++ --target=wasm32-wasip2 -std=c++23 -fno-exceptions -fno-rtti"
 mkdir -p build
 
-$cxx -O2 -I"$sdk/include" -I../../common -c src/zoom.cpp -o build/zoom.o
+$cxx -O2 -I"$sdk/include" -c src/zoom.cpp -o build/zoom.o
 $cxx -mexec-model=reactor -Wl,--gc-sections -Wl,--strip-all -o build/zoom.wasm build/zoom.o \
     "$lib/wasm/libffrwd-node.a" "$lib/wasm/node_module.o" "$lib/gen/node_module_component_type.o"

@@ -1,9 +1,15 @@
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <vector>
 
+#include "ffrwd/frame.hpp"
 #include "ffrwd/node.hpp"
-#include "resize.hpp"
+
+using ffrwd::frame::Filter, ffrwd::frame::Norm, ffrwd::frame::planes, ffrwd::frame::Rect, ffrwd::frame::Rgba;
+
+/// What `planes` divides by to hand back eight-bit values unchanged.
+constexpr Norm EIGHT_BITS{{0.0f, 0.0f, 0.0f}, {1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f}};
 
 constexpr std::array<std::uint8_t, 4> DOWN{48, 48, 48, 255};
 
@@ -18,7 +24,7 @@ struct Tile {
     std::uint32_t id = 0;
     std::size_t width = 0;
     std::size_t height = 0;
-    resize::Rect cell;
+    Rect cell;
 };
 
 struct Mosaic : ffrwd::Node<Mosaic, Params> {
@@ -33,20 +39,22 @@ struct Mosaic : ffrwd::Node<Mosaic, Params> {
 
     /// `pixels`, a `tile`'s picture, resized into its cell of `canvas`.
     ffrwd::Status put(ffrwd::Bytes& canvas, const Tile& tile, const ffrwd::Bytes& pixels) const {
-        if (auto wrong = resize::misfit(pixels.size(), tile.width, tile.height)) return ffrwd::fail(*wrong);
+        FFRWD_LET(picture, Rgba::make(pixels, tile.width, tile.height));
         std::size_t w = tile.cell.width(), h = tile.cell.height();
-        auto whole = resize::Rect::whole(tile.width, tile.height);
-        auto rgb = resize::bilinear(pixels.data(), tile.width, tile.height, whole, w, h);
+        auto whole = Rect::whole(tile.width, tile.height);
+        auto rgb = planes(picture, whole, w, h, Filter::Bilinear, EIGHT_BITS);
         for (std::size_t y = 0; y < h; ++y)
             for (std::size_t x = 0; x < w; ++x) {
                 std::size_t at = ((tile.cell.y0 + y) * width + tile.cell.x0 + x) * 4;
-                for (std::size_t channel = 0; channel < 3; ++channel)
-                    canvas[at + channel] = rgb[(y * w + x) * 3 + channel];
+                for (std::size_t channel = 0; channel < 3; ++channel) {
+                    float value = rgb[channel * w * h + y * w + x];
+                    canvas[at + channel] = std::uint8_t(std::clamp(std::round(value), 0.0f, 255.0f));
+                }
             }
         return {};
     }
 
-    void fill(ffrwd::Bytes& canvas, resize::Rect cell, std::array<std::uint8_t, 4> colour) const {
+    void fill(ffrwd::Bytes& canvas, Rect cell, std::array<std::uint8_t, 4> colour) const {
         for (std::size_t y = cell.y0; y < cell.y1; ++y)
             for (std::size_t x = cell.x0; x < cell.x1; ++x)
                 std::copy(colour.begin(), colour.end(), canvas.data() + (y * width + x) * 4);

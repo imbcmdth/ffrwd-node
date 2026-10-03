@@ -33,204 +33,20 @@ ffrwd-frame = { git = "https://github.com/imbcmdth/ffrwd-frame", tag = "v0.1.1" 
 
 **C++**
 
-The crop and the resize are the examples' own `common/resize.hpp`, which the
-build puts on the include path:
+```cpp
+#include "ffrwd/frame.hpp"
+```
 
-```sh
-$cxx -O2 -I"$sdk/include" -I../../common -c src/zoom.cpp -o build/zoom.o
+**JavaScript**
+
+```js
+import { Filter, planes, Rect, Rgba } from '@ffrwd/node/frame';
 ```
 
 **Go**
 
-The crop and the resize are the example's own `resize.go`:
-
 ```go
-package main
-
-import (
-	"fmt"
-	"math"
-)
-
-// What the Rust example takes from ffrwd-frame, written out by hand: the
-// crop and Pillow's bilinear resize, as ffrwd-frame asks fast_image_resize
-// for it. The resize antialiases when it shrinks, goes across first and then
-// down, and rounds back into eight bits after each pass, so its bytes are
-// the Rust example's.
-
-// Rect is a half-open rectangle of a picture, in pixels: exclusive on the
-// right and bottom.
-type Rect struct {
-	X0, Y0, X1, Y1 int
-}
-
-// Whole is the whole picture.
-func Whole(width, height int) Rect {
-	return Rect{0, 0, width, height}
-}
-
-func (r Rect) Width() int  { return max(r.X1-r.X0, 0) }
-func (r Rect) Height() int { return max(r.Y1-r.Y0, 0) }
-
-// resize is rect of an rgba picture resized to width x height: interleaved
-// red, green and blue, alpha dropped.
-func resize(pixels []byte, pictureWidth, pictureHeight int, rect Rect, width, height int) ([]byte, error) {
-	if want := pictureWidth * pictureHeight * 4; len(pixels) != want {
-		return nil, fmt.Errorf("an rgba frame of %dx%d is %d bytes, not %d", pictureWidth, pictureHeight, want, len(pixels))
-	}
-	rect.X1, rect.Y1 = min(rect.X1, pictureWidth), min(rect.Y1, pictureHeight)
-	rect.X0, rect.Y0 = min(rect.X0, rect.X1), min(rect.Y0, rect.Y1)
-	cw, ch := rect.Width(), rect.Height()
-	if cw == 0 || ch == 0 || width == 0 || height == 0 {
-		return make([]byte, width*height*3), nil
-	}
-	rgb := make([]byte, 0, cw*ch*3)
-	for y := rect.Y0; y < rect.Y1; y++ {
-		for x := rect.X0; x < rect.X1; x++ {
-			at := (y*pictureWidth + x) * 4
-			rgb = append(rgb, pixels[at:at+3]...)
-		}
-	}
-	if width != cw {
-		rgb = horizontal(rgb, cw, ch, width)
-	}
-	if height != ch {
-		rgb = vertical(rgb, width, ch, height)
-	}
-	return rgb, nil
-}
-
-// kernel is, for each of size pixels resampled from in, the first source
-// pixel it reads and the weight of each it reads, in fixed point of
-// precision bits.
-type kernel struct {
-	starts    []int
-	weights   [][]int16
-	precision uint
-}
-
-func bilinear(x float64) float64 {
-	x = math.Abs(x)
-	if x < 1 {
-		return 1 - x
-	}
-	return 0
-}
-
-func newKernel(in, size int) kernel {
-	scale := float64(in) / float64(size)
-	filterScale := max(scale, 1)
-	radius := filterScale
-	window := int(math.Ceil(radius))*2 + 1
-	recip := 1 / filterScale
-	values := make([]float64, 0, window*size)
-	type bound struct{ start, size int }
-	bounds := make([]bound, 0, size)
-	for out := range size {
-		inCenter := (float64(out) + 0.5) * scale
-		lo := int(math.Max(math.Floor(inCenter-radius), 0))
-		hi := int(math.Min(math.Ceil(inCenter+radius), float64(in)))
-		at := len(values)
-		total := 0.0
-		center := inCenter - 0.5
-		start, end := lo, hi
-		for x := lo; x < hi; x++ {
-			w := bilinear((float64(x) - center) * recip)
-			if x == start && w == 0 {
-				start++
-			} else {
-				values = append(values, w)
-				total += w
-			}
-		}
-		for i := len(values) - 1; i >= 0; i-- {
-			if end <= start || values[i] != 0 {
-				break
-			}
-			end--
-		}
-		if total != 0 {
-			for i := at; i < len(values); i++ {
-				values[i] /= total
-			}
-		}
-		for len(values) < at+window {
-			values = append(values, 0)
-		}
-		values = values[:at+window]
-		bounds = append(bounds, bound{start, end - start})
-	}
-
-	heaviest := 0.0
-	for n, w := range values {
-		if n == 0 || w > heaviest {
-			heaviest = w
-		}
-	}
-	var precision uint
-	for bits := uint(0); bits < 32-8-2; bits++ {
-		precision = bits
-		if int32(math.Round(heaviest*float64(int32(1)<<(bits+1)))) >= 1<<15 {
-			break
-		}
-	}
-	k := kernel{precision: precision}
-	scaleBy := float64(int32(1) << precision)
-	for n, b := range bounds {
-		weights := make([]int16, b.size)
-		for i := range weights {
-			weights[i] = int16(math.Round(values[n*window+i] * scaleBy))
-		}
-		k.starts = append(k.starts, b.start)
-		k.weights = append(k.weights, weights)
-	}
-	return k
-}
-
-func (k kernel) clip(sum int32) byte {
-	return byte(min(max(sum>>k.precision, 0), 255))
-}
-
-// horizontal resamples each row of an rgb picture to width pixels.
-func horizontal(rgb []byte, inWidth, height, width int) []byte {
-	k := newKernel(inWidth, width)
-	initial := int32(1) << (k.precision - 1)
-	out := make([]byte, width*height*3)
-	for y := range height {
-		row := rgb[y*inWidth*3:]
-		for x := range width {
-			sums := [3]int32{initial, initial, initial}
-			for i, w := range k.weights[x] {
-				at := (k.starts[x] + i) * 3
-				for c := range 3 {
-					sums[c] += int32(row[at+c]) * int32(w)
-				}
-			}
-			for c := range 3 {
-				out[(y*width+x)*3+c] = k.clip(sums[c])
-			}
-		}
-	}
-	return out
-}
-
-// vertical resamples each column of an rgb picture to height pixels.
-func vertical(rgb []byte, width, inHeight, height int) []byte {
-	k := newKernel(inHeight, height)
-	initial := int32(1) << (k.precision - 1)
-	stride := width * 3
-	out := make([]byte, stride*height)
-	for y := range height {
-		for x := range stride {
-			sum := initial
-			for i, w := range k.weights[y] {
-				sum += int32(rgb[(k.starts[y]+i)*stride+x]) * int32(w)
-			}
-			out[y*stride+x] = k.clip(sum)
-		}
-	}
-	return out
-}
+import "github.com/imbcmdth/ffrwd-node/go/frame"
 ```
 
 **Rust**
@@ -352,8 +168,13 @@ ffrwd_node::export!(Zoom);
 #include <cmath>
 #include <vector>
 
+#include "ffrwd/frame.hpp"
 #include "ffrwd/node.hpp"
-#include "resize.hpp"
+
+using ffrwd::frame::Filter, ffrwd::frame::Norm, ffrwd::frame::planes, ffrwd::frame::Rect, ffrwd::frame::Rgba;
+
+/// What `planes` divides by to hand back eight-bit values unchanged.
+constexpr Norm EIGHT_BITS{{0.0f, 0.0f, 0.0f}, {1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f}};
 
 struct Params {
     double amount;
@@ -362,11 +183,12 @@ struct Params {
     FFRWD_FIELDS(amount, x, y)
 };
 
-/// Red, green and blue back to opaque rgba.
-ffrwd::Bytes interleave(const std::vector<std::uint8_t>& rgb, std::size_t pixels) {
+/// Planar red, green and blue back to opaque rgba.
+ffrwd::Bytes interleave(const std::vector<float>& planes, std::size_t pixels) {
     ffrwd::Bytes rgba(pixels * 4);
     for (std::size_t at = 0; at < pixels; ++at) {
-        for (std::size_t channel = 0; channel < 3; ++channel) rgba[at * 4 + channel] = rgb[at * 3 + channel];
+        for (std::size_t channel = 0; channel < 3; ++channel)
+            rgba[at * 4 + channel] = std::uint8_t(std::clamp(std::round(planes[channel * pixels + at]), 0.0f, 255.0f));
         rgba[at * 4 + 3] = 255;
     }
     return rgba;
@@ -385,7 +207,7 @@ struct Zoom : ffrwd::Node<Zoom, Params> {
 
     /// The part of the picture that fills the frame: `1 / amount` of each
     /// side, centred on `x`, `y` as far as the picture allows.
-    resize::Rect crop() const {
+    Rect crop() const {
         double w = std::max(std::round(double(width) / params.amount), 1.0);
         double h = std::max(std::round(double(height) / params.amount), 1.0);
         auto x0 = std::size_t(std::clamp(params.x * double(width) - w / 2.0, 0.0, double(width) - w));
@@ -423,8 +245,8 @@ struct Zoom : ffrwd::Node<Zoom, Params> {
         if (!frame) return {};
         if (params.amount == 1.0) return out.pass("v", v, *frame);
         ffrwd::Bytes pixels = tick.fetch(v, frame->index);
-        if (auto wrong = resize::misfit(pixels.size(), width, height)) return ffrwd::fail(*wrong);
-        auto rgb = resize::bilinear(pixels.data(), width, height, crop(), width, height);
+        FFRWD_LET(picture, Rgba::make(pixels, width, height));
+        auto rgb = planes(picture, crop(), width, height, Filter::Bilinear, EIGHT_BITS);
         return out.frame("v", frame->pts, frame->duration, interleave(rgb, width * height));
     }
 };
@@ -436,6 +258,10 @@ FFRWD_EXPORT(Zoom);
 
 ```js
 import { defineNode, Input, Output, Shape } from '@ffrwd/node';
+import { Filter, planes, Rect, Rgba } from '@ffrwd/node/frame';
+
+/** What `planes` divides by to hand back eight-bit values unchanged. */
+const EIGHT_BITS = { mean: [0, 0, 0], std: [1 / 255, 1 / 255, 1 / 255] };
 
 /** The part of the picture that fills the frame: `1 / amount` of each
  * side, centred on `x`, `y` as far as the picture allows. */
@@ -444,85 +270,18 @@ function crop(width, height, { amount, x, y }) {
   const h = Math.max(Math.round(height / amount), 1);
   const x0 = Math.trunc(Math.min(Math.max(x * width - w / 2, 0), width - w));
   const y0 = Math.trunc(Math.min(Math.max(y * height - h / 2, 0), height - h));
-  return { x0, y0, x1: x0 + w, y1: y0 + h };
+  return new Rect(x0, y0, x0 + w, y0 + h);
 }
 
-// Pillow's bilinear resize, written out here: it works in the same fixed
-// point, pass for pass, as the ffrwd-frame crate the Rust example calls, so
-// both modules make the same picture to the byte.
-
-/** For each of `size` pixels made from `from`: the first pixel it reads, and
- * its weights in fixed point with `bits` fractional bits. */
-function taps(from, size) {
-  const scale = from / size;
-  const stretch = Math.max(scale, 1);
-  const kernels = [];
-  for (let at = 0; at < size; at += 1) {
-    const centre = (at + 0.5) * scale;
-    let first = Math.max(Math.floor(centre - stretch), 0);
-    const end = Math.min(Math.ceil(centre + stretch), from);
-    const weights = [];
-    for (let x = first; x < end; x += 1) {
-      const weight = Math.max(0, 1 - Math.abs((x - (centre - 0.5)) * (1 / stretch)));
-      if (weight === 0 && weights.length === 0) first += 1;
-      else weights.push(weight);
-    }
-    const sum = weights.reduce((total, weight) => total + weight, 0);
-    while (weights.at(-1) === 0) weights.pop();
-    kernels.push({ first, weights: weights.map((weight) => (sum === 0 ? weight : weight / sum)) });
-  }
-  const most = Math.max(0, ...kernels.flatMap((kernel) => kernel.weights));
-  let bits = 0;
-  while (bits < 21 && Math.round(most * 2 ** (bits + 1)) < 2 ** 15) bits += 1;
-  for (const kernel of kernels) kernel.weights = kernel.weights.map((weight) => Math.round(weight * 2 ** bits));
-  return { kernels, bits };
-}
-
-/** `size` pixels across (or down) made from each row (or column) of an rgb
- * picture `width` x `height`, rounded back to eight bits. */
-function pass(rgb, width, height, size, across) {
-  const { kernels, bits } = taps(across ? width : height, size);
-  const [w, h] = across ? [size, height] : [width, size];
-  const out = new Uint8Array(w * h * 3);
-  for (let y = 0; y < h; y += 1) {
-    for (let x = 0; x < w; x += 1) {
-      const { first, weights } = kernels[across ? x : y];
-      for (let channel = 0; channel < 3; channel += 1) {
-        let sum = 1 << (bits - 1);
-        for (let n = 0; n < weights.length; n += 1) {
-          const at = across ? (y * width + first + n) * 3 : ((first + n) * width + x) * 3;
-          sum += rgb[at + channel] * weights[n];
-        }
-        out[(y * w + x) * 3 + channel] = Math.min(Math.max(sum >> bits, 0), 255);
-      }
+/** Planar red, green and blue back to opaque rgba. */
+function interleave(planes, pixels) {
+  const rgba = new Uint8Array(pixels * 4).fill(255);
+  for (let at = 0; at < pixels; at += 1) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      rgba[at * 4 + channel] = Math.min(Math.max(Math.round(planes[channel * pixels + at]), 0), 255);
     }
   }
-  return out;
-}
-
-/** `rect` of an rgba picture `stride` pixels wide, resized to `width` x
- * `height`: across first, then down, as Pillow does. Red, green and blue. */
-function resize(pixels, stride, rect, width, height) {
-  let [w, h] = [rect.x1 - rect.x0, rect.y1 - rect.y0];
-  let rgb = new Uint8Array(w * h * 3);
-  for (let y = 0; y < h; y += 1) {
-    for (let x = 0; x < w; x += 1) {
-      const [from, to] = [((rect.y0 + y) * stride + rect.x0 + x) * 4, (y * w + x) * 3];
-      for (let channel = 0; channel < 3; channel += 1) rgb[to + channel] = pixels[from + channel];
-    }
-  }
-  if (w !== width) [rgb, w] = [pass(rgb, w, h, width, true), width];
-  if (h !== height) [rgb, h] = [pass(rgb, w, h, height, false), height];
-  return rgb;
-}
-
-/** Red, green and blue back to opaque rgba. */
-function interleave(rgb) {
-  const pixels = new Uint8Array((rgb.length / 3) * 4).fill(255);
-  for (let at = 0; at < rgb.length / 3; at += 1) {
-    for (let channel = 0; channel < 3; channel += 1) pixels[at * 4 + channel] = rgb[at * 3 + channel];
-  }
-  return pixels;
+  return rgba;
 }
 
 export const node = defineNode({
@@ -554,9 +313,9 @@ export const node = defineNode({
         const frame = tick.frame(v.id);
         if (frame === undefined) return;
         if (params.amount === 1) return out.pass('v', v.id, frame);
-        const pixels = tick.fetch(v.id, frame.index);
-        const zoomed = interleave(resize(pixels, width, crop(width, height, params), width, height));
-        out.frame('v', frame.pts, frame.duration, zoomed);
+        const picture = new Rgba(tick.fetch(v.id, frame.index), width, height);
+        const rgb = planes(picture, crop(width, height, params), width, height, Filter.Bilinear, EIGHT_BITS);
+        out.frame('v', frame.pts, frame.duration, interleave(rgb, width * height));
       },
     };
   },
@@ -573,7 +332,12 @@ import (
 	"math"
 
 	node "github.com/imbcmdth/ffrwd-node/go"
+	"github.com/imbcmdth/ffrwd-node/go/frame"
 )
+
+// eightBits is what frame.Planes divides by to hand back eight-bit values
+// unchanged.
+var eightBits = frame.Norm{Std: [3]float32{1.0 / 255, 1.0 / 255, 1.0 / 255}}
 
 type Params struct {
 	Amount float64 `json:"amount"`
@@ -590,22 +354,24 @@ type Zoom struct {
 
 // crop is the part of the picture that fills the frame: 1 / amount of each
 // side, centred on x, y as far as the picture allows.
-func (z *Zoom) crop() Rect {
+func (z *Zoom) crop() frame.Rect {
 	width, height := float64(z.width), float64(z.height)
 	w := math.Max(math.Round(width/z.params.Amount), 1)
 	h := math.Max(math.Round(height/z.params.Amount), 1)
 	x0 := int(min(max(z.params.X*width-w/2, 0), width-w))
 	y0 := int(min(max(z.params.Y*height-h/2, 0), height-h))
-	return Rect{X0: x0, Y0: y0, X1: x0 + int(w), Y1: y0 + int(h)}
+	return frame.Rect{X0: x0, Y0: y0, X1: x0 + int(w), Y1: y0 + int(h)}
 }
 
-// opaque is interleaved red, green and blue back to opaque rgba.
-func opaque(rgb []byte) []byte {
-	pixels := make([]byte, 0, len(rgb)/3*4)
-	for at := 0; at+2 < len(rgb); at += 3 {
-		pixels = append(pixels, rgb[at], rgb[at+1], rgb[at+2], 255)
+// interleave is planar red, green and blue back to opaque rgba.
+func interleave(planes []float32, pixels int) []byte {
+	rgba := make([]byte, 0, pixels*4)
+	for at := range pixels {
+		for _, c := range [4]float32{planes[at], planes[pixels+at], planes[2*pixels+at], 255} {
+			rgba = append(rgba, byte(min(max(math.Round(float64(c)), 0), 255)))
+		}
 	}
-	return pixels
+	return rgba
 }
 
 var Definition = node.Definition[Params]{
@@ -638,19 +404,22 @@ func (z *Zoom) SetParams(params Params) error {
 }
 
 func (z *Zoom) Process(tick *node.Tick, out *node.Out) error {
-	frame, ok := tick.Frame(z.v)
+	in, ok := tick.Frame(z.v)
 	if !ok {
 		return nil
 	}
 	if z.params.Amount == 1 {
-		return out.Pass("v", z.v, frame)
+		return out.Pass("v", z.v, in)
 	}
-	pixels := tick.Fetch(z.v, frame.Index)
-	rgb, err := resize(pixels, z.width, z.height, z.crop(), z.width, z.height)
+	pixels := tick.Fetch(z.v, in.Index)
+	picture, err := frame.NewRgba(pixels, z.width, z.height)
 	if err != nil {
 		return err
 	}
-	return out.Frame("v", frame.Pts, frame.Duration, opaque(rgb))
+	width, height := z.width, z.height
+	rgb := frame.Planes(picture, z.crop(), width, height, frame.Bilinear, eightBits)
+	zoomed := interleave(rgb, width*height)
+	return out.Frame("v", in.Pts, in.Duration, zoomed)
 }
 
 func init() { node.Export(Definition) }

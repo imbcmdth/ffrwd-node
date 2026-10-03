@@ -2,8 +2,13 @@
 #include <cmath>
 #include <vector>
 
+#include "ffrwd/frame.hpp"
 #include "ffrwd/node.hpp"
-#include "resize.hpp"
+
+using ffrwd::frame::Filter, ffrwd::frame::Norm, ffrwd::frame::planes, ffrwd::frame::Rect, ffrwd::frame::Rgba;
+
+/// What `planes` divides by to hand back eight-bit values unchanged.
+constexpr Norm EIGHT_BITS{{0.0f, 0.0f, 0.0f}, {1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f}};
 
 struct Params {
     double amount;
@@ -12,11 +17,12 @@ struct Params {
     FFRWD_FIELDS(amount, x, y)
 };
 
-/// Red, green and blue back to opaque rgba.
-ffrwd::Bytes interleave(const std::vector<std::uint8_t>& rgb, std::size_t pixels) {
+/// Planar red, green and blue back to opaque rgba.
+ffrwd::Bytes interleave(const std::vector<float>& planes, std::size_t pixels) {
     ffrwd::Bytes rgba(pixels * 4);
     for (std::size_t at = 0; at < pixels; ++at) {
-        for (std::size_t channel = 0; channel < 3; ++channel) rgba[at * 4 + channel] = rgb[at * 3 + channel];
+        for (std::size_t channel = 0; channel < 3; ++channel)
+            rgba[at * 4 + channel] = std::uint8_t(std::clamp(std::round(planes[channel * pixels + at]), 0.0f, 255.0f));
         rgba[at * 4 + 3] = 255;
     }
     return rgba;
@@ -35,7 +41,7 @@ struct Zoom : ffrwd::Node<Zoom, Params> {
 
     /// The part of the picture that fills the frame: `1 / amount` of each
     /// side, centred on `x`, `y` as far as the picture allows.
-    resize::Rect crop() const {
+    Rect crop() const {
         double w = std::max(std::round(double(width) / params.amount), 1.0);
         double h = std::max(std::round(double(height) / params.amount), 1.0);
         auto x0 = std::size_t(std::clamp(params.x * double(width) - w / 2.0, 0.0, double(width) - w));
@@ -73,8 +79,8 @@ struct Zoom : ffrwd::Node<Zoom, Params> {
         if (!frame) return {};
         if (params.amount == 1.0) return out.pass("v", v, *frame);
         ffrwd::Bytes pixels = tick.fetch(v, frame->index);
-        if (auto wrong = resize::misfit(pixels.size(), width, height)) return ffrwd::fail(*wrong);
-        auto rgb = resize::bilinear(pixels.data(), width, height, crop(), width, height);
+        FFRWD_LET(picture, Rgba::make(pixels, width, height));
+        auto rgb = planes(picture, crop(), width, height, Filter::Bilinear, EIGHT_BITS);
         return out.frame("v", frame->pts, frame->duration, interleave(rgb, width * height));
     }
 };

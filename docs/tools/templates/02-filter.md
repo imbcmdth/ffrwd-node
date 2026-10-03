@@ -31,18 +31,15 @@ centred on that point as far as the picture allows.
 ffrwd-frame = { git = "https://github.com/imbcmdth/ffrwd-frame", tag = "v0.1.1" }
 ```
 
-**C++**
+@cpp cpp/02-filter/zoom/src/zoom.cpp 5-5
 
-The crop and the resize are the examples' own `common/resize.hpp`, which the
-build puts on the include path:
-
-@code sh cpp/02-filter/zoom/build.sh 17-17
+@js js/02-filter/zoom/src/zoom.js 2-2
 
 **Go**
 
-The crop and the resize are the example's own `resize.go`:
-
-@code go go/02-filter/zoom/resize.go
+```go
+import "github.com/imbcmdth/ffrwd-node/go/frame"
+```
 
 @rust 02-filter/zoom/src/lib.rs
 

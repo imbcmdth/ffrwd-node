@@ -5,7 +5,12 @@ import (
 	"math"
 
 	node "github.com/imbcmdth/ffrwd-node/go"
+	"github.com/imbcmdth/ffrwd-node/go/frame"
 )
+
+// eightBits is what frame.Planes divides by to hand back eight-bit values
+// unchanged.
+var eightBits = frame.Norm{Std: [3]float32{1.0 / 255, 1.0 / 255, 1.0 / 255}}
 
 type Params struct {
 	Amount float64 `json:"amount"`
@@ -22,22 +27,24 @@ type Zoom struct {
 
 // crop is the part of the picture that fills the frame: 1 / amount of each
 // side, centred on x, y as far as the picture allows.
-func (z *Zoom) crop() Rect {
+func (z *Zoom) crop() frame.Rect {
 	width, height := float64(z.width), float64(z.height)
 	w := math.Max(math.Round(width/z.params.Amount), 1)
 	h := math.Max(math.Round(height/z.params.Amount), 1)
 	x0 := int(min(max(z.params.X*width-w/2, 0), width-w))
 	y0 := int(min(max(z.params.Y*height-h/2, 0), height-h))
-	return Rect{X0: x0, Y0: y0, X1: x0 + int(w), Y1: y0 + int(h)}
+	return frame.Rect{X0: x0, Y0: y0, X1: x0 + int(w), Y1: y0 + int(h)}
 }
 
-// opaque is interleaved red, green and blue back to opaque rgba.
-func opaque(rgb []byte) []byte {
-	pixels := make([]byte, 0, len(rgb)/3*4)
-	for at := 0; at+2 < len(rgb); at += 3 {
-		pixels = append(pixels, rgb[at], rgb[at+1], rgb[at+2], 255)
+// interleave is planar red, green and blue back to opaque rgba.
+func interleave(planes []float32, pixels int) []byte {
+	rgba := make([]byte, 0, pixels*4)
+	for at := range pixels {
+		for _, c := range [4]float32{planes[at], planes[pixels+at], planes[2*pixels+at], 255} {
+			rgba = append(rgba, byte(min(max(math.Round(float64(c)), 0), 255)))
+		}
 	}
-	return pixels
+	return rgba
 }
 
 var Definition = node.Definition[Params]{
@@ -70,19 +77,22 @@ func (z *Zoom) SetParams(params Params) error {
 }
 
 func (z *Zoom) Process(tick *node.Tick, out *node.Out) error {
-	frame, ok := tick.Frame(z.v)
+	in, ok := tick.Frame(z.v)
 	if !ok {
 		return nil
 	}
 	if z.params.Amount == 1 {
-		return out.Pass("v", z.v, frame)
+		return out.Pass("v", z.v, in)
 	}
-	pixels := tick.Fetch(z.v, frame.Index)
-	rgb, err := resize(pixels, z.width, z.height, z.crop(), z.width, z.height)
+	pixels := tick.Fetch(z.v, in.Index)
+	picture, err := frame.NewRgba(pixels, z.width, z.height)
 	if err != nil {
 		return err
 	}
-	return out.Frame("v", frame.Pts, frame.Duration, opaque(rgb))
+	width, height := z.width, z.height
+	rgb := frame.Planes(picture, z.crop(), width, height, frame.Bilinear, eightBits)
+	zoomed := interleave(rgb, width*height)
+	return out.Frame("v", in.Pts, in.Duration, zoomed)
 }
 
 func init() { node.Export(Definition) }

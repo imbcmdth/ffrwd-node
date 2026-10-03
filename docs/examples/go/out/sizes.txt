@@ -1,6 +1,6 @@
 01-first-node/invert: go 5145503 bytes, rust 411797 bytes
 01-first-node/scaffold: go 5140703 bytes, rust 301675 bytes
-02-filter/zoom: go 5173950 bytes, rust 1291780 bytes
+02-filter/zoom: go 5178235 bytes, rust 1291780 bytes
 02-filter/blend: go 5153656 bytes, rust 414349 bytes
 03-detector/glow: go 5171067 bytes, rust 451315 bytes
 04-reader/band: go 5179500 bytes, rust 458030 bytes
@@ -11,6 +11,6 @@
 06-source/beat: go 5153310 bytes, rust 420285 bytes
 07-sink/tally: go 5150381 bytes, rust 401817 bytes
 08-held/cutin: go 5315426 bytes, rust 474718 bytes
-08-held/mosaic: go 5196315 bytes, rust 1295070 bytes
+08-held/mosaic: go 5200596 bytes, rust 1295070 bytes
 09-pure/glow: go 5170725 bytes, rust 446621 bytes
 10-testing/levels: go 5154486 bytes, rust 306782 bytes
