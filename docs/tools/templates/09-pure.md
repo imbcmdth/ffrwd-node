@@ -1,41 +1,55 @@
 # 9. Staying pure
 
-A node that runs on one worker runs at that worker's speed, however many the
-machine has. A pure node runs on all of them, and its results come out the
-same. This chapter says what pure promises, shows how the `glow` of [chapter
-3](03-detector.md) breaks it, and makes it pure.
+The host can run a node on one worker thread or on several. A node that is
+not pure runs on one worker, one tick at a time, no matter how many cores
+the machine has. A pure node can be spread across all of them, and the host
+guarantees that the output is the same as if the node had run on one. This
+chapter explains what "pure" promises, shows how the `glow` detector from
+[chapter 3](03-detector.md) breaks that promise, and fixes it.
 
 ## What the host promises
 
-A node that says it is pure promises that every tick depends only on what
-the tick hands it, counting a state input's earlier rows as handed. In
-return the host opens several instances of it and hands each one some of the
-ticks. The results are put back in tick order before they leave, so a reader
-sees one stream.
+A node declares itself pure in its shape. By doing so it promises that the
+result of every tick depends only on what the host handed it for that tick.
+For an input whose rows are kept as state, the rows of earlier ticks count
+as handed, since the host delivers them before the tick runs.
 
-What each instance can rely on:
+In return, the host opens several instances of the node and gives each
+instance a share of the ticks. The results are put back into tick order
+before they leave the node, so whatever reads the node's output sees one
+stream, as if one instance had produced it.
 
-- the tick's frames, messages and packets, as for any node;
-- the tick's ordinal: its number in the run, from 0, counted over every
-  instance, so the same tick has the same number on every worker;
-- the rows of every state input, including the ones from ticks another
-  instance ran, before its own tick ([chapter 4](04-reader.md));
-- a held input's feed record and the feeds that ended since its own previous
-  call ([chapter 8](08-held.md));
-- the params, and what it read from its streams when it opened.
+An instance can rely on these things being the same no matter which worker
+it runs on:
 
-What it cannot rely on is having seen the tick before this one.
+- the frames, messages and packets of its tick, as for any node;
+- the tick's ordinal: the tick's number in the run, counted from 0 across
+  every instance, so a given tick has the same number on every worker;
+- the rows of every state input, including rows from ticks that another
+  instance ran, delivered before the instance's own tick ([chapter
+  4](04-reader.md));
+- the feed record of each held input, and the list of feeds that ended since
+  this instance's previous call ([chapter 8](08-held.md));
+- the parameters, and what the instance read from its streams when it was
+  opened.
 
-A node that is not pure runs as one instance, a tick at a time, in order.
-That is always correct and sometimes slow.
+The one thing an instance cannot rely on is having seen the previous tick.
+Another instance may have run it.
 
-## How glow breaks it
+A node that does not declare itself pure runs as a single instance, one tick
+at a time, in order. That is always correct. It is slow when the node's work
+per tick is heavy and the machine has cores to spare.
 
-The first `glow` keeps open spans from one tick to the next. On one worker,
-a glow seen at every tick is one span. Over two workers, each instance sees
-every other tick, opens its own span on its first, and the rows of one glow
-carry two different `start_t`s. Its test, with ticks handed out the way two
-workers would get them:
+## How glow breaks the promise
+
+The first version of `glow` keeps its open spans from one tick to the next:
+when a glow is still visible on the next tick, the node extends the span it
+already started. On one worker this works, and a glow that lasts ten ticks
+is one span. On two workers, each instance sees every other tick, and each
+instance starts its own span the first time it sees the glow. The rows for
+one glow then carry two different `start_t` values, one per instance. The
+test below shows this. It hands the ticks to two instances the way two
+workers would receive them:
 
 @rust 03-detector/glow/src/lib.rs 87-129
 
@@ -45,18 +59,21 @@ workers would get them:
 
 @go go/03-detector/glow/main_test.go
 
-The host never spreads that `glow` over workers, because its shape does not
-say it is pure. Saying pure with that body would give exactly those rows.
+The host never spreads this version of `glow` across workers, because its
+shape does not say it is pure. If the shape did say so, with this body, the
+rows would come out exactly as the test shows.
 
 ## Counting by ordinal
 
-A span has to be something every worker can work out from the tick alone.
-The new `glow` cuts time into blocks of `every` frames by the tick's
-ordinal, and names a sighting by its block: the block's number is its `id`,
-and the time of the block's first frame its `start_t`. That time is the
-frame's pts less one frame for each tick into the block, counted in the
-stream's own time base, so every row of a block carries exactly the same
-`start_t`.
+For a span to be the same on every worker, every worker must be able to
+work out which span a tick belongs to from the tick alone. The new `glow`
+does this with the tick's ordinal. It divides time into blocks of `every`
+frames, and a sighting is named by its block: the block number is the
+row's `id`, and the time of the block's first frame is the row's `start_t`.
+That time is the current frame's pts minus one frame for each tick since
+the block began, counted in the stream's own time base. Every row in a
+block therefore carries exactly the same `start_t`, whichever instance
+wrote it.
 
 @rust 09-pure/glow/src/lib.rs 44-94
 
@@ -66,15 +83,16 @@ stream's own time base, so every row of a block carries exactly the same
 
 @go go/09-pure/glow/main.go 51-108
 
-A glow that lasts across blocks is several spans, one per block, and
-`ffrwd.merge_spans` writes a row for each. A glow that comes and goes inside
-a block is one span with gaps in it.
+A glow that lasts across several blocks becomes several spans, one per
+block, and `ffrwd.merge_spans` writes one row for each. A glow that
+flickers on and off within one block is one span with gaps.
 
-## The harness as several workers
+## Running the harness as several workers
 
-The mock harness opens a node as the host does, and a test can open several
-and hand the ticks around, each with its ordinal, as workers would be handed
-them. A pure node writes the same rows whichever way the ticks fall:
+The mock harness opens a node the way the host does. A test can open
+several harnesses and distribute the ticks among them, each tick with its
+ordinal, exactly as the host would distribute them among workers. A pure
+node writes the same rows no matter how the ticks are distributed:
 
 @rust 09-pure/glow/src/lib.rs 96-154
 
@@ -84,30 +102,33 @@ them. A pure node writes the same rows whichever way the ticks fall:
 
 @go go/09-pure/glow/main_test.go
 
-The query runs the same at any number of workers:
+The query gives the same result at any number of workers:
 
 @sql 09-pure/run/spans.sql
 
 @lines 09-pure-spans-jobs1.ndjson ndjson 1-2
 
-That is the run at `--jobs 1`; at `--jobs 4` it writes the same bytes.
+That is the output at `--jobs 1`. At `--jobs 4` the output is byte for byte
+the same.
 
 ## Ways to end up impure
 
-Each of these ties a tick to something other than what it was handed.
+Each of these makes a tick depend on something other than what the host
+handed it.
 
-- **Keeping what earlier ticks saw.** Open spans, a previous frame, a
-  running total, a flag that says something already happened. Read a window
-  of frames instead ([chapter 5](05-window.md)), or rows as state.
-- **Counting calls.** A tick counter of the node's own counts only the ticks
-  its instance ran. Count with the ordinal.
-- **Keeping rows of an input that is not state.** Rows read per frame are
+- **Keeping what earlier ticks saw.** Open spans, the previous frame, a
+  running total, a flag that records that something already happened. Read
+  a window of frames instead ([chapter 5](05-window.md)), or keep rows as
+  state.
+- **Counting calls.** A counter the node keeps itself counts only the ticks
+  its own instance ran. Use the tick's ordinal instead.
+- **Keeping rows from an input that is not state.** Rows read per frame are
   handed once, to the instance that runs their tick. Declare the input as
-  state, and every instance gets them.
-- **Saying something once.** A row written "the first time" is written once
-  per instance. Write it on the tick the record names, as `cutin` does with
-  presence.
-- **The wall clock, randomness, the network.** Each answers differently on
-  each worker, and on each run.
+  state, and every instance receives them.
+- **Doing something once.** A row written "the first time" is written once
+  per instance, so several times in all. Write it on the tick the record
+  names, as `cutin` does with its presence rows.
+- **The wall clock, random numbers, the network.** Each gives a different
+  answer on each worker, and on each run.
 
-Printing to the log is fine: it changes nothing the node emits.
+Writing to the log is fine. It changes nothing the node emits.

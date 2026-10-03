@@ -1,14 +1,15 @@
 # 1. Your first node
 
-A node that inverts a picture's colours: one video input, one video output,
-one frame out for every frame in. Build it, ask the toolchain what it is,
-and call it from a query.
+This chapter builds a node that inverts the colours of a picture: one video
+input, one video output, one frame out for every frame in. It builds the
+module, asks the toolchain what the module declares, and calls the module
+from a query.
 
 ## The project
 
-A node module is a library built for `wasm32-wasip2`. It depends on the SDK,
-which carries the interface the host speaks, so the project holds no
-interface files of its own.
+A node module is a library compiled for the `wasm32-wasip2` target. The
+module depends on the SDK, and the SDK carries the interface the host
+speaks, so the project itself holds no interface files.
 
 @toml 01-first-node/invert/Cargo.toml
 
@@ -20,23 +21,25 @@ interface files of its own.
 
 ## The node
 
-A node answers four calls.
+The host makes four kinds of call to a node.
 
-- **Its name and params.** What `describe` reports: the module's name, its
-  version and the JSON Schema of its params. This one takes none.
-- **Its shape.** The ports and the clock. One video input `v`, which is the
-  clock and arrives as rgba, and one output named `v` in `v`'s format.
-- **Opening an instance.** The host binds a stream to each input the call
-  connects and hands the node an id per stream. The node keeps the id; every
-  later call names the stream by it.
-- **Each tick.** The tick hands the clock input's frame. The node fetches
-  its bytes, inverts every colour channel and emits the new picture at the
-  frame's own pts and duration.
+- **Describe.** The host asks for the module's name, its version and the
+  JSON Schema of its parameters. This node takes no parameters.
+- **Shape.** The host asks for the node's ports and its clock. This node
+  has one video input named `v`, which is also its clock and must arrive as
+  rgba, and one output named `v` in the same format as the input.
+- **Init.** The host opens an instance of the node. It binds a stream to
+  each input the query connected and hands the node an id for each stream.
+  The node keeps the id, because every later call names the stream by it.
+- **Process.** Once per tick, the host hands the node the current frame of
+  its clock input. The node fetches the frame's bytes, inverts every colour
+  channel, and emits the new picture with the same pts and duration as the
+  frame it came from.
 
-The shape says two more things. The node is pure: each tick depends only on
-what it was handed, so the host may run it on several workers at once. And
-it is one to one: one frame leaves for every frame that arrives, at the same
-pts.
+The shape says two more things about this node. It is pure: each tick
+depends only on what the host handed it, so the host may run the node on
+several worker threads at once. And it is one to one: exactly one frame
+leaves for every frame that arrives, at the same pts.
 
 @rust 01-first-node/invert/src/lib.rs
 
@@ -46,20 +49,22 @@ pts.
 
 @go go/01-first-node/invert/main.go
 
-A frame's bytes enter the module only when the node fetches them. Until then
-a frame is its pts, its duration and its place in the tick. The last call,
-after the input has ended, may hand no frame at all, and the node returns
-with nothing to emit.
+A frame's bytes are copied into the module only when the node fetches
+them. Until then the node sees only the frame's pts, its duration, and its
+position in the tick. On the last call, which comes after the input has
+ended, the host may hand no frame at all; the node then returns with
+nothing to emit.
 
-Every emission is checked as it is made. The port has to be one the shape
-declares and of the payload's kind, and its pts never go back. A node that
-breaks either ends the run with the port named.
+The SDK checks every emission as the node makes it. The port must be one
+the shape declares, the payload must be of that port's kind, and the pts on
+a port must never go backwards. A node that breaks any of these ends the
+run with an error that names the port.
 
 ## Build it
 
 **Rust**
 
-The module lands in `target/wasm32-wasip2/release/invert.wasm`:
+The module is written to `target/wasm32-wasip2/release/invert.wasm`:
 
 ```
 cargo build --target wasm32-wasip2 --release
@@ -67,8 +72,8 @@ cargo build --target wasm32-wasip2 --release
 
 **C++**
 
-With `WASI_SDK` set to your wasi-sdk, the module lands in
-`build/invert.wasm`:
+With `WASI_SDK` set to the directory wasi-sdk is installed in, the module is
+written to `build/invert.wasm`:
 
 ```
 sh build.sh
@@ -76,53 +81,57 @@ sh build.sh
 
 **JavaScript**
 
-`npm install` once, then `npm run build`, which runs `build.js`. The module
-lands in `build/invert.wasm`:
+Run `npm install` once, then `npm run build`, which runs `build.js`. The
+module is written to `build/invert.wasm`:
 
 @code js js/01-first-node/invert/build.js
 
 **Go**
 
-The module lands in `build/invert.wasm`:
+The module is written to `build/invert.wasm`:
 
 ```
 componentize-go -d "$(go list -m -f '{{.Dir}}' github.com/imbcmdth/ffrwd-node/go)/wit" \
     -w ffrwd:av/node-module@0.19.1 build -o build/invert.wasm
 ```
 
-## What it says about itself
+## What the module declares
 
-`ffrwd-wasm` is the host. `--describe` prints what a module declares:
+`ffrwd-wasm` is the host. Its `--describe` flag prints what a module
+declares about itself:
 
 @command invert.describe.txt
 
 @body invert.describe.txt
 
-`"node": true` marks it as a node. The format lists are empty because a
-node's ports say what each accepts, and `inputs` means nothing here. The
-shape says the rest.
+`"node": true` marks the module as a node. The format lists are empty
+because for a node the ports say what each one accepts, and the `inputs`
+count means nothing for a node. The shape, below, says the rest.
 
 ## Its shape
 
-`--shape` asks the module for its ports, given the params of a call and the
-inputs it binds. `--bound v` binds one stream to `v`:
+The `--shape` flag asks the module for its ports and clock. The module
+answers for a given call, so the flag takes the call's parameters and the
+names of the inputs the call binds. `--bound v` binds one stream to the
+input `v`:
 
 @command invert.shape.txt
 
 @body invert.shape.txt
 
-The clock is the input `v`. Each tick is one of its frames: a window of one,
-moving one at a time. A clock input is always lockstep, single and required.
-The output takes its format from `v`, and its time base too, since it names
-none. The compiler reads all of this before it plans the query, so a call
-that binds the wrong kind of stream, or leaves `v` out, is refused at
-compile time.
+The clock is the input `v`. Each tick is one frame of `v`: a window of one
+frame, advancing one frame at a time. A clock input is always lockstep,
+single and required. The output declares no format and no time base, so it
+takes both from `v`. The compiler reads all of this before it plans the
+query. A call that binds the wrong kind of stream to `v`, or leaves `v`
+unbound, is refused at compile time.
 
 ## Calling it from a query
 
-A query declares the module as a function. The first string is the module's
-path, the second its name. The parameters are its ports and its params, and
-`v video_stream` here is the port `v`.
+A query declares the module as a function. In the declaration, the first
+string is the module's path and the second is the node's name. The
+function's parameters are the node's ports and its params; here `v
+video_stream` is the port `v`.
 
 @sql 01-first-node/run/invert.sql
 
@@ -132,13 +141,13 @@ path, the second its name. The parameters are its ports and its params, and
 
 The first ffmpeg decodes the picture to rgba, the format `v` accepts.
 `ffrwd-wasm` runs the node: `[v=0:v]invert[v=out0]` binds the input's video
-to the port `v` and labels what the port `v` writes. `-bound` is the list of
-inputs the compiler asked the shape with, each stream with its rate, and the
-host asks the shape again with the same list, so the node runs with the
-shape the query was planned against. The last ffmpeg encodes the result
-beside the file's own sound.
+to the port `v` and gives a label to what the port `v` writes. `-bound` is
+the list of inputs the compiler bound when it asked for the shape, with each
+stream's frame rate. The host asks the module for its shape again with the
+same list, so the node runs with the shape the query was planned against.
+The last ffmpeg encodes the result together with the file's own sound.
 
-`ffrwd run -f invert.sql` runs it.
+`ffrwd run -f invert.sql` runs the query.
 
 ## Starting from a package
 
@@ -152,8 +161,8 @@ $ ffrwd init --rust --name acme/invert
 
 **C++**
 
-`ffrwd init` writes no C++ module, so the package is written by hand. This
-one is `docs/examples/cpp/01-first-node/scaffold` in
+`ffrwd init` writes no C++ module, so the package is written by hand. The
+one used here is `docs/examples/cpp/01-first-node/scaffold` in
 [ffrwd-node](https://github.com/imbcmdth/ffrwd-node):
 
 ```
@@ -170,8 +179,8 @@ README.md
 
 **JavaScript**
 
-`ffrwd init` writes no JavaScript module, so the package is written by hand.
-This one is `docs/examples/js/01-first-node/scaffold` in
+`ffrwd init` writes no JavaScript module, so the package is written by
+hand. The one used here is `docs/examples/js/01-first-node/scaffold` in
 [ffrwd-node](https://github.com/imbcmdth/ffrwd-node):
 
 ```
@@ -189,8 +198,8 @@ README.md
 
 **Go**
 
-`ffrwd init` writes no Go module, so the package is written by hand. This
-one is `docs/examples/go/01-first-node/scaffold` in
+`ffrwd init` writes no Go module, so the package is written by hand. The
+one used here is `docs/examples/go/01-first-node/scaffold` in
 [ffrwd-node](https://github.com/imbcmdth/ffrwd-node):
 
 ```
@@ -207,9 +216,10 @@ README.md
 .gitignore
 ```
 
-The package holds the manifest `ffrwd.json` and an empty `ffrwd.lock`, the
-build files, and a node named `passthrough` that hands its one video input
-back untouched. Beside them go `src/passthrough.sql`, which declares the
-module as the package's export, `recipes/passthrough.sql`, a query calling
-it, and a `README.md`. The node's work goes in its tick. Chapter 10 turns
-such a package into one ready to publish.
+The package holds the manifest `ffrwd.json`, an empty lock file
+`ffrwd.lock`, the build files, and a node named `passthrough` that hands its
+one video input back untouched. Beside them are `src/passthrough.sql`,
+which declares the module as the package's export, `recipes/passthrough.sql`,
+a query that calls it, and a `README.md`. The node's own work goes in its
+process call. Chapter 10 turns a package like this one into one that is
+ready to publish.
