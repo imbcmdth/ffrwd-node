@@ -2,9 +2,9 @@
 
 A node is tested on the machine it is written on, without a host and without
 media, and shipped as a package anyone can install. This chapter turns the
-package `ffrwd init --rust` writes into `acme/levels`, whose node stretches
-a picture's levels, tests it, checks its shape from the command line and
-publishes it.
+package [chapter 1](01-first-node.md) starts from into `acme/levels`, whose
+node stretches a picture's levels, tests it, checks its shape from the
+command line and publishes it.
 
 ## The node
 
@@ -87,6 +87,197 @@ impl Node for Levels {
 ffrwd_node::export!(Levels);
 ```
 
+**C++**
+
+```cpp
+#include <algorithm>
+#include <cmath>
+
+#include "ffrwd/node.hpp"
+
+struct Params {
+    std::uint8_t black;
+    std::uint8_t white;
+    FFRWD_FIELDS(black, white)
+};
+
+/// `value` with `black` moved to 0 and `white` to 255.
+std::uint8_t stretch(std::uint8_t value, Params params) {
+    double black = params.black, white = params.white;
+    return std::uint8_t(std::clamp(std::round((value - black) * 255.0 / (white - black)), 0.0, 255.0));
+}
+
+struct Levels : ffrwd::Node<Levels, Params> {
+    static constexpr std::string_view name = "levels";
+    static constexpr std::string_view version = "0.1.0";
+    static constexpr std::string_view params_schema =
+        R"({"type":"object","properties":{"black":{"type":"integer","minimum":0,"maximum":254,"default":16},"white":{"type":"integer","minimum":1,"maximum":255,"default":235}},"additionalProperties":false})";
+
+    std::uint32_t v = 0;
+    Params params;
+
+    static ffrwd::Result<ffrwd::Shape> shape(const Params& params, const ffrwd::Bound&) {
+        if (params.black >= params.white) return ffrwd::fail("levels needs `black` under `white`");
+        return ffrwd::Shape()
+            .input(ffrwd::Input::video("v").clock().pixel_formats({"rgba"}))
+            .output(ffrwd::Output::like("v"))
+            .pure()
+            .one_to_one();
+    }
+
+    static ffrwd::Result<Levels> init(Params params, const ffrwd::Init& init) {
+        FFRWD_LET(v, init.stream("v"));
+        Levels node;
+        node.v = v.id;
+        node.params = params;
+        return node;
+    }
+
+    ffrwd::Status set_params(Params next) {
+        params = next;
+        return {};
+    }
+
+    ffrwd::Status process(const ffrwd::Tick& tick, ffrwd::Out& out) {
+        auto frame = tick.frame(v);
+        if (!frame) return {};
+        if (params.black == 0 && params.white == 255) return out.pass("v", v, *frame);
+        ffrwd::Bytes pixels = tick.fetch(v, frame->index);
+        for (std::size_t at = 0; at + 3 < pixels.size(); at += 4)
+            for (std::size_t channel = at; channel < at + 3; ++channel)
+                pixels[channel] = stretch(pixels[channel], params);
+        return out.frame("v", frame->pts, frame->duration, std::move(pixels));
+    }
+};
+
+FFRWD_EXPORT(Levels);
+```
+
+**JavaScript**
+
+```js
+import { defineNode, Input, Output, Shape } from '@ffrwd/node';
+
+/** `value` with `black` moved to 0 and `white` to 255. */
+function stretch(value, { black, white }) {
+  return Math.min(Math.max(Math.round(((value - black) * 255) / (white - black)), 0), 255);
+}
+
+export const node = defineNode({
+  name: 'levels',
+  version: '0.1.0',
+  paramsSchema:
+    '{"type":"object","properties":{"black":{"type":"integer","minimum":0,"maximum":254,"default":16},' +
+    '"white":{"type":"integer","minimum":1,"maximum":255,"default":235}},"additionalProperties":false}',
+
+  shape({ black, white }) {
+    if (black >= white) throw new Error('levels needs `black` under `white`');
+    return new Shape()
+      .input(Input.video('v').clock().pixelFormats(['rgba']))
+      .output(Output.like('v'))
+      .pure()
+      .oneToOne();
+  },
+
+  init(params, init) {
+    const v = init.stream('v').id;
+    return {
+      setParams(changed) {
+        params = changed;
+      },
+      process(tick, out) {
+        const frame = tick.frame(v);
+        if (frame === undefined) return;
+        if (params.black === 0 && params.white === 255) return out.pass('v', v, frame);
+        const pixels = tick.fetch(v, frame.index);
+        for (let at = 0; at < pixels.length; at += 4) {
+          for (let channel = at; channel < at + 3; channel += 1) pixels[channel] = stretch(pixels[channel], params);
+        }
+        out.frame('v', frame.pts, frame.duration, pixels);
+      },
+    };
+  },
+});
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"errors"
+	"math"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+)
+
+type Params struct {
+	Black uint8 `json:"black"`
+	White uint8 `json:"white"`
+}
+
+type Levels struct {
+	v      uint32
+	params Params
+}
+
+// stretch is value with black moved to 0 and white to 255.
+func stretch(value uint8, params Params) uint8 {
+	black, white := float64(params.Black), float64(params.White)
+	return uint8(min(max(math.Round((float64(value)-black)*255/(white-black)), 0), 255))
+}
+
+var Definition = node.Definition[Params]{
+	Name:         "levels",
+	Version:      "0.1.0",
+	ParamsSchema: `{"type":"object","properties":{"black":{"type":"integer","minimum":0,"maximum":254,"default":16},"white":{"type":"integer","minimum":1,"maximum":255,"default":235}},"additionalProperties":false}`,
+	Shape: func(params Params, _ *node.Bound) (node.Shape, error) {
+		if params.Black >= params.White {
+			return node.Shape{}, errors.New("levels needs `black` under `white`")
+		}
+		return node.NewShape().
+			Input(node.VideoInput("v").Clock().PixelFormats("rgba")).
+			Output(node.LikeOutput("v")).
+			Pure().
+			OneToOne(), nil
+	},
+	Init: func(params Params, init *node.Init) (node.Instance, error) {
+		v, err := init.Stream("v")
+		if err != nil {
+			return nil, err
+		}
+		return &Levels{v: v.ID, params: params}, nil
+	},
+}
+
+func (l *Levels) SetParams(params Params) error {
+	l.params = params
+	return nil
+}
+
+func (l *Levels) Process(tick *node.Tick, out *node.Out) error {
+	frame, ok := tick.Frame(l.v)
+	if !ok {
+		return nil
+	}
+	if l.params == (Params{Black: 0, White: 255}) {
+		return out.Pass("v", l.v, frame)
+	}
+	pixels := tick.Fetch(l.v, frame.Index)
+	for at := 0; at+3 < len(pixels); at += 4 {
+		for channel := at; channel < at+3; channel++ {
+			pixels[channel] = stretch(pixels[channel], l.params)
+		}
+	}
+	return out.Frame("v", frame.Pts, frame.Duration, pixels)
+}
+
+func init() { node.Export(Definition) }
+
+func main() {}
+```
+
 ## The mock harness
 
 Everything but the bindings builds on the machine the node is written on, so
@@ -163,10 +354,202 @@ mod tests {
 }
 ```
 
+**C++**
+
+```cpp
+#include "levels.cpp"
+
+#include <variant>
+#include <vector>
+
+#include "check.hpp"
+#include "ffrwd/mock.hpp"
+
+ffrwd::Result<ffrwd::mock::Harness<Levels>> open(std::string_view params) {
+    auto v = ffrwd::BoundStream::video("v", 0, 2, 1, "rgba", ffrwd::Rational(1, 25));
+    return ffrwd::mock::Harness<Levels>::open(params, {v});
+}
+
+TEST(black_and_white_reach_the_ends) {
+    auto levels = CHECK_OK(open(""));
+    std::vector<std::uint8_t> pixels{16, 16, 16, 255, 235, 126, 235, 255};
+    auto tick = levels.tick(0).frame(0, 0, ffrwd::Bytes(pixels));
+    auto emitted = CHECK_OK(levels.process(tick));
+    auto on = emitted.on("v");
+    CHECK_EQ(on.size(), 1u);
+    const auto* frame = std::get_if<ffrwd::FramePayload>(on.at(0));
+    CHECK(frame && frame->data.vector() == (std::vector<std::uint8_t>{0, 0, 0, 255, 255, 128, 255, 255}));
+}
+
+TEST(the_full_range_passes_the_frame_on) {
+    auto levels = CHECK_OK(open(R"({"black":0,"white":255})"));
+    auto emitted = CHECK_OK(levels.process(levels.tick(0).frame(0, 0, ffrwd::Bytes(8))));
+    auto on = emitted.on("v");
+    CHECK(on.size() == 1 && std::holds_alternative<ffrwd::SamePayload>(*on[0]));
+}
+
+TEST(params_change_between_ticks) {
+    auto levels = CHECK_OK(open(""));
+    CHECK_OK(levels.set_params(R"({"black":0,"white":255})"));
+    auto emitted = CHECK_OK(levels.process(levels.tick(0).frame(0, 0, ffrwd::Bytes(8))));
+    auto on = emitted.on("v");
+    CHECK(on.size() == 1 && std::holds_alternative<ffrwd::SamePayload>(*on[0]));
+}
+
+TEST(black_over_white_is_refused) {
+    std::string error = CHECK_ERR(open(R"({"black":200,"white":100})"));
+    CHECK_HAS(error, "`black` under `white`");
+    CHECK(!open(R"({"black":-1})"));
+}
+```
+
+**JavaScript**
+
+```js
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import { BoundStream, Rational } from '@ffrwd/node';
+import { Harness } from '@ffrwd/node/mock';
+
+import { node } from '../src/levels.js';
+
+function open(params) {
+  const v = BoundStream.video('v', 0, 2, 1, 'rgba', new Rational(1, 25));
+  return new Harness(node, params, [v]);
+}
+
+test('black and white reach the ends', () => {
+  const levels = open('');
+  const tick = levels.tick(0).frame(0, 0, Uint8Array.of(16, 16, 16, 255, 235, 126, 235, 255));
+  const emitted = levels.process(tick);
+  const [payload] = emitted.on('v');
+  assert.equal(payload.tag, 'frame');
+  assert.deepEqual([...payload.val.data], [0, 0, 0, 255, 255, 128, 255, 255]);
+});
+
+test('the full range passes the frame on', () => {
+  const levels = open('{"black":0,"white":255}');
+  const emitted = levels.process(levels.tick(0).frame(0, 0, new Uint8Array(8)));
+  assert.deepEqual(emitted.on('v').map((payload) => payload.tag), ['same']);
+});
+
+test('params change between ticks', () => {
+  const levels = open('');
+  levels.setParams('{"black":0,"white":255}');
+  const emitted = levels.process(levels.tick(0).frame(0, 0, new Uint8Array(8)));
+  assert.deepEqual(emitted.on('v').map((payload) => payload.tag), ['same']);
+});
+
+test('black over white is refused', () => {
+  assert.throws(() => open('{"black":200,"white":100}'), /`black` under `white`/);
+  assert.throws(() => open('{"black":-1}'));
+});
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"reflect"
+	"strings"
+	"testing"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+	"github.com/imbcmdth/ffrwd-node/go/mock"
+)
+
+func open(params string) (*mock.Harness[Params], error) {
+	v := node.VideoStream("v", 0, 2, 1, "rgba", node.R(1, 25))
+	return mock.Open(Definition, params, v)
+}
+
+func TestBlackAndWhiteReachTheEnds(t *testing.T) {
+	levels, err := open("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tick := levels.Tick(0).
+		WithFrame(0, 0, []byte{16, 16, 16, 255, 235, 126, 235, 255})
+	emitted, err := levels.Process(tick)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloads := emitted.On("v")
+	if len(payloads) != 1 || payloads[0].Kind != node.PayloadFrame {
+		t.Fatalf("no frame: %+v", emitted)
+	}
+	if want := []byte{0, 0, 0, 255, 255, 128, 255, 255}; !reflect.DeepEqual(payloads[0].Data, want) {
+		t.Fatalf("%v", payloads[0].Data)
+	}
+}
+
+func TestTheFullRangePassesTheFrameOn(t *testing.T) {
+	levels, err := open(`{"black":0,"white":255}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	emitted, err := levels.Process(levels.Tick(0).WithFrame(0, 0, make([]byte, 8)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payloads := emitted.On("v"); len(payloads) != 1 || payloads[0].Kind != node.PayloadSame {
+		t.Fatalf("%+v", emitted)
+	}
+}
+
+func TestParamsChangeBetweenTicks(t *testing.T) {
+	levels, err := open("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := levels.SetParams(`{"black":0,"white":255}`); err != nil {
+		t.Fatal(err)
+	}
+	emitted, err := levels.Process(levels.Tick(0).WithFrame(0, 0, make([]byte, 8)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payloads := emitted.On("v"); len(payloads) != 1 || payloads[0].Kind != node.PayloadSame {
+		t.Fatalf("%+v", emitted)
+	}
+}
+
+func TestBlackOverWhiteIsRefused(t *testing.T) {
+	_, err := open(`{"black":200,"white":100}`)
+	if err == nil || !strings.Contains(err.Error(), "`black` under `white`") {
+		t.Fatalf("%v", err)
+	}
+	if _, err := open(`{"black":-1}`); err == nil {
+		t.Fatal("a black of -1 was taken")
+	}
+}
+```
+
 **Rust**
 
 ```
 cargo test
+```
+
+**C++**
+
+```
+sh build.sh test
+```
+
+**JavaScript**
+
+```
+npm test
+```
+
+**Go**
+
+```
+go test ./...
 ```
 
 ## Shapes on the command line
@@ -175,14 +558,54 @@ cargo test
 alone bind one stream each, at no known rate; a name written again binds one
 more stream to that port:
 
+**Rust**
+
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound v
 ```
 
+**C++**
+
+```
+$ ffrwd-wasm --shape build/levels.wasm --bound v
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/levels.wasm --bound v
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/levels.wasm --bound v
+```
+
 The list the compiler passes gives every stream its rate:
+
+**Rust**
 
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound '[{"input":"v","streams":[{"rate":{"num":25,"den":1}}]}]'
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --shape build/levels.wasm --bound '[{"input":"v","streams":[{"rate":{"num":25,"den":1}}]}]'
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/levels.wasm --bound '[{"input":"v","streams":[{"rate":{"num":25,"den":1}}]}]'
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/levels.wasm --bound '[{"input":"v","streams":[{"rate":{"num":25,"den":1}}]}]'
 ```
 
 `levels` does not turn on the rate, so both print the same shape:
@@ -233,17 +656,63 @@ $ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound '[{"input"
 A node that counts in frames or samples does turn on it. `level`, from
 [chapter 5](05-window.md), refuses the names alone:
 
+**Rust**
+
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/level.wasm --bound a
 ffrwd-wasm: asking target/wasm32-wasip2/release/level.wasm for its shape: level refused the shape: level counts its window in samples, and the call gives `a` no sample rate
 ```
 
+**C++**
+
+```
+$ ffrwd-wasm --shape build/level.wasm --bound a
+ffrwd-wasm: asking build/level.wasm for its shape: level refused the shape: level counts its window in samples, and the call gives `a` no sample rate
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/level.wasm --bound a
+ffrwd-wasm: asking build/level.wasm for its shape: level refused the shape: level counts its window in samples, and the call gives `a` no sample rate
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/level.wasm --bound a
+ffrwd-wasm: asking build/level.wasm for its shape: level refused the shape: level counts its window in samples, and the call gives `a` no sample rate
+```
+
 `--params` gives a call's params, and a node's refusal comes back naming the
 node:
+
+**Rust**
 
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --params '{"black":200,"white":100}' --bound v
 ffrwd-wasm: asking target/wasm32-wasip2/release/levels.wasm for its shape: levels refused the shape: levels needs `black` under `white`
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --shape build/levels.wasm --params '{"black":200,"white":100}' --bound v
+ffrwd-wasm: asking build/levels.wasm for its shape: levels refused the shape: levels needs `black` under `white`
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/levels.wasm --params '{"black":200,"white":100}' --bound v
+ffrwd-wasm: asking build/levels.wasm for its shape: levels refused the shape: levels needs `black` under `white`
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/levels.wasm --params '{"black":200,"white":100}' --bound v
+ffrwd-wasm: asking build/levels.wasm for its shape: levels refused the shape: levels needs `black` under `white`
 ```
 
 The compiler asks the same question for every call, so the query hears the
@@ -267,8 +736,8 @@ error: line 6:10: UNSUPPORTED_SQL: levels(): the module 'levels.wasm' refused th
 
 ## The package
 
-`ffrwd init --rust` writes the package around the node. After renaming its
-export and recipe to `levels`, it holds:
+The package around the node is chapter 1's, its export and recipe renamed to
+`levels`. It holds:
 
 - `ffrwd.json`, the manifest;
 - `ffrwd.lock`, what the package installed, which nothing but `install`
@@ -291,7 +760,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-ffrwd-node = { git = "https://github.com/imbcmdth/ffrwd-node", tag = "v0.2.0" }
+ffrwd-node = { path = "../../../../rust" }
 ffrwd-frame = { git = "https://github.com/imbcmdth/ffrwd-frame", tag = "v0.1.1" }
 serde = { version = "1", features = ["derive"] }
 
@@ -301,13 +770,116 @@ lto = true
 strip = true
 ```
 
+**C++**
+
+```sh
+#!/bin/sh
+# Builds build/levels.wasm: the node compiled with wasi-sdk and linked with
+# the ffrwd-node C++ library, which `sh build.sh modules` in the SDK's cpp/
+# directory builds.
+#
+#   sh build.sh         build/levels.wasm
+#   sh build.sh test    builds the tests for this machine and runs them
+#
+#   FFRWD_NODE        the SDK's cpp/ directory
+#   FFRWD_NODE_BUILD  where its library was built, $FFRWD_NODE/build unless set
+#   WASI_SDK          wasi-sdk 34 or newer
+#   CXX               a C++23 compiler for this machine, for the tests
+set -eu
+cd "$(dirname "$0")"
+sdk=${FFRWD_NODE:-../../../../../cpp}
+lib=${FFRWD_NODE_BUILD:-$sdk/build}
+wasi=${WASI_SDK:-C:/tools/wasi-sdk-34.0-x86_64-windows}
+cxx="$wasi/bin/clang++ --target=wasm32-wasip2 -std=c++23 -fno-exceptions -fno-rtti"
+mkdir -p build
+
+if [ "${1:-}" = test ]; then
+    ${CXX:-clang++} -std=c++23 -O1 -I"$sdk/include" -I"$sdk/tests" -o build/levels_test \
+        $(ls "$sdk"/src/*.cpp | grep -v glue.cpp) "$sdk/tests/main.cpp" src/levels_test.cpp
+    exec build/levels_test
+fi
+
+$cxx -O2 -I"$sdk/include" -c src/levels.cpp -o build/levels.o
+$cxx -mexec-model=reactor -Wl,--gc-sections -Wl,--strip-all -o build/levels.wasm build/levels.o \
+    "$lib/wasm/libffrwd-node.a" "$lib/wasm/node_module.o" "$lib/gen/node_module_component_type.o"
+```
+
+**JavaScript**
+
+Beside a `build.js` like chapter 1's:
+
+```json
+{
+  "name": "levels",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@ffrwd/node": "file:../../../../../js"
+  },
+  "devDependencies": {
+    "@bytecodealliance/componentize-js": "0.22.0",
+    "esbuild": "^0.25.0"
+  }
+}
+```
+
+**Go**
+
+Beside a `build.sh` that runs chapter 1's `componentize-go` line:
+
+```
+module levels
+
+go 1.25
+
+require github.com/imbcmdth/ffrwd-node/go v0.0.0
+
+require go.bytecodealliance.org/pkg v0.2.2 // indirect
+
+replace github.com/imbcmdth/ffrwd-node/go => ../../../../../go
+```
+
 The export names the built module by its path from the package's root:
+
+**Rust**
 
 ```sql
 -- Stretches the picture's levels so `black` becomes 0 and `white` 255.
 CREATE FUNCTION levels(v video_stream, black number DEFAULT 16, white number DEFAULT 235)
 RETURNS video_stream
   AS 'target/wasm32-wasip2/release/levels.wasm', 'levels' LANGUAGE wasm;
+```
+
+**C++**
+
+```sql
+-- Stretches the picture's levels so `black` becomes 0 and `white` 255.
+CREATE FUNCTION levels(v video_stream, black number DEFAULT 16, white number DEFAULT 235)
+RETURNS video_stream
+  AS 'build/levels.wasm', 'levels' LANGUAGE wasm;
+```
+
+**JavaScript**
+
+```sql
+-- Stretches the picture's levels so `black` becomes 0 and `white` 255.
+CREATE FUNCTION levels(v video_stream, black number DEFAULT 16, white number DEFAULT 235)
+RETURNS video_stream
+  AS 'build/levels.wasm', 'levels' LANGUAGE wasm;
+```
+
+**Go**
+
+```sql
+-- Stretches the picture's levels so `black` becomes 0 and `white` 255.
+CREATE FUNCTION levels(v video_stream, black number DEFAULT 16, white number DEFAULT 235)
+RETURNS video_stream
+  AS 'build/levels.wasm', 'levels' LANGUAGE wasm;
 ```
 
 A recipe calls it by its full name, the package's two halves and the
@@ -329,6 +901,8 @@ package.
 The manifest names the export and the recipe, depends on the interface the
 module speaks, and says how to test the package:
 
+**Rust**
+
 ```json
 {
   "name": "acme/levels",
@@ -348,6 +922,78 @@ module speaks, and says how to test the package:
   ],
   "capabilities": [],
   "test": "cargo test"
+}
+```
+
+**C++**
+
+```json
+{
+  "name": "acme/levels",
+  "version": "0.1.0",
+  "lib": {
+    "levels": "src/levels.sql"
+  },
+  "bin": {
+    "levels": "recipes/levels.sql"
+  },
+  "dependencies": {
+    "ffrwd/wasm": "0.19.1"
+  },
+  "keywords": [
+    "levels",
+    "contrast"
+  ],
+  "capabilities": [],
+  "test": "sh build.sh test"
+}
+```
+
+**JavaScript**
+
+```json
+{
+  "name": "acme/levels",
+  "version": "0.1.0",
+  "lib": {
+    "levels": "src/levels.sql"
+  },
+  "bin": {
+    "levels": "recipes/levels.sql"
+  },
+  "dependencies": {
+    "ffrwd/wasm": "0.19.1"
+  },
+  "keywords": [
+    "levels",
+    "contrast"
+  ],
+  "capabilities": [],
+  "test": "npm test"
+}
+```
+
+**Go**
+
+```json
+{
+  "name": "acme/levels",
+  "version": "0.1.0",
+  "lib": {
+    "levels": "src/levels.sql"
+  },
+  "bin": {
+    "levels": "recipes/levels.sql"
+  },
+  "dependencies": {
+    "ffrwd/wasm": "0.19.1"
+  },
+  "keywords": [
+    "levels",
+    "contrast"
+  ],
+  "capabilities": [],
+  "test": "go test ./..."
 }
 ```
 
@@ -373,8 +1019,8 @@ on this machine, before it sends a byte:
 Then it packs the package and sends it. The archive is the manifest, every
 file the manifest names, every module its exports declare, the README and
 the licence, and whatever the manifest's `files` adds. That is why the built
-module ships out of `target/` although `.ffrwdignore` names the directory:
-the module is the package, and the tree it was built from stays home.
+module ships although `.ffrwdignore` names the directory it is built in: the
+module is the package, and the tree it was built from stays home.
 
 A published version never changes. Publishing the same bytes again changes
 nothing; publishing different bytes under the same version is refused, so a

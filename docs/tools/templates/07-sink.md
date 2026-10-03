@@ -44,12 +44,16 @@ beside its params.
 
 @rust 07-sink/tally/src/lib.rs
 
+@cpp cpp/07-sink/tally/src/tally.cpp
+
+@js js/07-sink/tally/src/tally.js
+
+@go go/07-sink/tally/main.go
+
 Two optional ports of packets by arrival, each taking any number of streams,
 and a rate:
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/tally.wasm --bound video,audio
-```
+@command tally.shape.txt
 
 @json tally.shape.txt inputs.0
 
@@ -57,9 +61,7 @@ $ ffrwd-wasm --shape target/wasm32-wasip2/release/tally.wasm --bound video,audio
 
 `--describe` carries the schema of the run's rows:
 
-```
-$ ffrwd-wasm --describe target/wasm32-wasip2/release/tally.wasm
-```
+@command tally.describe.txt
 
 @json tally.describe.txt rows_schema
 

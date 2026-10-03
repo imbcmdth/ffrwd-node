@@ -139,11 +139,274 @@ impl Node for Tally {
 ffrwd_node::export!(Tally);
 ```
 
+**C++**
+
+```cpp
+#include <algorithm>
+#include <optional>
+#include <string>
+#include <variant>
+#include <vector>
+
+#include "ffrwd/node.hpp"
+
+/// One row per stream, written on the last call.
+struct Count {
+    std::string port;
+    std::string codec;
+    std::uint64_t packets = 0;
+    std::uint64_t keyframes = 0;
+    std::uint64_t bytes = 0;
+    double seconds = 0.0;
+    FFRWD_FIELDS(port, codec, packets, keyframes, bytes, seconds)
+};
+
+struct Stream {
+    std::uint32_t id = 0;
+    ffrwd::Rational time_base;
+    Count count;
+    std::optional<std::int64_t> first;
+    std::optional<std::int64_t> last;
+};
+
+struct Tally : ffrwd::Node<Tally> {
+    static constexpr std::string_view name = "tally";
+    static constexpr std::string_view version = "0.1.0";
+    static constexpr std::string_view rows_schema =
+        R"({"type":"object","properties":{"port":{"type":"string"},"codec":{"type":"string"},"packets":{"type":"integer"},"keyframes":{"type":"integer"},"bytes":{"type":"integer"},"seconds":{"type":"number"}},"required":["port","codec","packets","keyframes","bytes","seconds"]})";
+
+    std::vector<Stream> streams;
+
+    static ffrwd::Result<ffrwd::Shape> shape(const ffrwd::NoParams&, const ffrwd::Bound&) {
+        return ffrwd::Shape()
+            .input(ffrwd::Input::packets("video").optional().many().arrival())
+            .input(ffrwd::Input::packets("audio").optional().many().arrival())
+            .rate(ffrwd::Rational(10, 1));
+    }
+
+    static ffrwd::Result<Tally> init(ffrwd::NoParams, const ffrwd::Init& init) {
+        Tally node;
+        for (const ffrwd::BoundStream& stream : init.all()) {
+            const auto* coded = stream.format ? std::get_if<ffrwd::CodedStream>(&*stream.format) : nullptr;
+            if (!coded) return ffrwd::fail("`" + stream.port + "` carries no packets");
+            node.streams.push_back(
+                Stream{stream.id, coded->time_base, Count{stream.port, coded->codec}, {}, {}});
+        }
+        return node;
+    }
+
+    ffrwd::Status process(const ffrwd::Tick& tick, ffrwd::Out& out) {
+        for (Stream& stream : streams) {
+            for (const ffrwd::Packet& packet : tick.packets(stream.id)) {
+                Count& count = stream.count;
+                count.packets += 1;
+                count.keyframes += packet.keyframe ? 1 : 0;
+                count.bytes += packet.data.size();
+                std::int64_t end = packet.pts + packet.duration.value_or(0);
+                stream.first = std::min(stream.first.value_or(packet.pts), packet.pts);
+                stream.last = std::max(stream.last.value_or(end), end);
+            }
+        }
+        if (tick.last()) {
+            for (Stream& stream : streams) {
+                if (stream.first && stream.last)
+                    stream.count.seconds = stream.time_base.seconds(*stream.last - *stream.first);
+                out.report(stream.count);
+            }
+        }
+        return {};
+    }
+};
+
+FFRWD_EXPORT(Tally);
+```
+
+**JavaScript**
+
+```js
+import { defineNode, Input, Rational, Shape } from '@ffrwd/node';
+
+export const node = defineNode({
+  name: 'tally',
+  version: '0.1.0',
+  rowsSchema:
+    '{"type":"object","properties":{"port":{"type":"string"},"codec":{"type":"string"},' +
+    '"packets":{"type":"integer"},"keyframes":{"type":"integer"},"bytes":{"type":"integer"},' +
+    '"seconds":{"type":"number"}},"required":["port","codec","packets","keyframes","bytes","seconds"]}',
+
+  shape() {
+    return new Shape()
+      .input(Input.packets('video').optional().many().arrival())
+      .input(Input.packets('audio').optional().many().arrival())
+      .rate(new Rational(10, 1));
+  },
+
+  init(_, init) {
+    const streams = init.all().map((stream) => {
+      if (stream.format?.tag !== 'packets') throw new Error(`\`${stream.port}\` carries no packets`);
+      const coded = stream.format.val;
+      return {
+        id: stream.id,
+        timeBase: coded.timeBase,
+        // One row per stream, written on the last call.
+        count: { port: stream.port, codec: coded.codec, packets: 0, keyframes: 0, bytes: 0, seconds: 0 },
+        first: undefined,
+        last: undefined,
+      };
+    });
+    return {
+      process(tick, out) {
+        for (const stream of streams) {
+          for (const packet of tick.packets(stream.id)) {
+            const count = stream.count;
+            count.packets += 1;
+            count.keyframes += packet.keyframe ? 1 : 0;
+            count.bytes += packet.data.length;
+            const end = packet.pts + (packet.duration ?? 0);
+            stream.first = Math.min(stream.first ?? packet.pts, packet.pts);
+            stream.last = Math.max(stream.last ?? end, end);
+          }
+        }
+        if (tick.last()) {
+          for (const stream of streams) {
+            if (stream.first !== undefined && stream.last !== undefined) {
+              stream.count.seconds = stream.timeBase.seconds(stream.last - stream.first);
+            }
+            out.report(stream.count);
+          }
+        }
+      },
+    };
+  },
+});
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"fmt"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+)
+
+// Count is one row per stream, written on the last call.
+type Count struct {
+	Port      string  `json:"port"`
+	Codec     string  `json:"codec"`
+	Packets   uint64  `json:"packets"`
+	Keyframes uint64  `json:"keyframes"`
+	Bytes     uint64  `json:"bytes"`
+	Seconds   float64 `json:"seconds"`
+}
+
+type Stream struct {
+	id       uint32
+	timeBase node.Rational
+	count    Count
+	first    *int64
+	last     *int64
+}
+
+type Tally struct {
+	streams []*Stream
+}
+
+var Definition = node.Definition[struct{}]{
+	Name:       "tally",
+	Version:    "0.1.0",
+	RowsSchema: `{"type":"object","properties":{"port":{"type":"string"},"codec":{"type":"string"},"packets":{"type":"integer"},"keyframes":{"type":"integer"},"bytes":{"type":"integer"},"seconds":{"type":"number"}},"required":["port","codec","packets","keyframes","bytes","seconds"]}`,
+	Shape: func(struct{}, *node.Bound) (node.Shape, error) {
+		return node.NewShape().
+			Input(node.PacketsInput("video").Optional().Many().Arrival()).
+			Input(node.PacketsInput("audio").Optional().Many().Arrival()).
+			Rate(node.R(10, 1)), nil
+	},
+	Init: func(_ struct{}, init *node.Init) (node.Instance, error) {
+		var streams []*Stream
+		for _, stream := range init.All() {
+			if stream.Format == nil || stream.Format.Packets == nil {
+				return nil, fmt.Errorf("`%s` carries no packets", stream.Port)
+			}
+			coded := stream.Format.Packets
+			streams = append(streams, &Stream{
+				id:       stream.ID,
+				timeBase: coded.TimeBase,
+				count:    Count{Port: stream.Port, Codec: coded.Codec},
+			})
+		}
+		return &Tally{streams: streams}, nil
+	},
+}
+
+func (t *Tally) Process(tick *node.Tick, out *node.Out) error {
+	for _, stream := range t.streams {
+		for _, packet := range tick.Packets(stream.id) {
+			count := &stream.count
+			count.Packets++
+			if packet.Keyframe {
+				count.Keyframes++
+			}
+			count.Bytes += uint64(len(packet.Data))
+			end := packet.Pts
+			if packet.Duration != nil {
+				end += *packet.Duration
+			}
+			first, last := packet.Pts, end
+			if stream.first != nil {
+				first = min(*stream.first, packet.Pts)
+			}
+			if stream.last != nil {
+				last = max(*stream.last, end)
+			}
+			stream.first, stream.last = &first, &last
+		}
+	}
+	if tick.Last() {
+		for _, stream := range t.streams {
+			if stream.first != nil && stream.last != nil {
+				stream.count.Seconds = stream.timeBase.Seconds(*stream.last - *stream.first)
+			}
+			if err := out.Report(stream.count); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func init() { node.Export(Definition) }
+
+func main() {}
+```
+
 Two optional ports of packets by arrival, each taking any number of streams,
 and a rate:
 
+**Rust**
+
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/tally.wasm --bound video,audio
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --shape build/tally.wasm --bound video,audio
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/tally.wasm --bound video,audio
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/tally.wasm --bound video,audio
 ```
 
 ```json
@@ -175,8 +438,28 @@ $ ffrwd-wasm --shape target/wasm32-wasip2/release/tally.wasm --bound video,audio
 
 `--describe` carries the schema of the run's rows:
 
+**Rust**
+
 ```
 $ ffrwd-wasm --describe target/wasm32-wasip2/release/tally.wasm
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --describe build/tally.wasm
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --describe build/tally.wasm
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --describe build/tally.wasm
 ```
 
 ```json

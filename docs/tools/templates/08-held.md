@@ -109,11 +109,15 @@ runs down to the cut. Notes the feeder writes beside its picture come out on
 
 @rust 08-held/cutin/src/lib.rs
 
+@cpp cpp/08-held/cutin/src/cutin.cpp
+
+@js js/08-held/cutin/src/cutin.js
+
+@go go/08-held/cutin/main.go
+
 The feed and the notes, as the shape has them:
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/cutin.wasm --params '{"port":9100}' --bound '[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]'
-```
+@command cutin-port.shape.txt
 
 @json cutin-port.shape.txt inputs.1.pairing
 
@@ -151,12 +155,16 @@ up but has no frame yet stays black.
 
 @rust 08-held/mosaic/src/lib.rs
 
+@cpp cpp/08-held/mosaic/src/mosaic.cpp
+
+@js js/08-held/mosaic/src/mosaic.js
+
+@go go/08-held/mosaic/main.go
+
 A port that takes many streams cannot be the clock, so the node ticks at a
 rate, here the rate of `v`'s first stream, which the compiler reads off it:
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/mosaic.wasm --params '{"columns":3,"width":960,"height":240}' --bound v,v,v
-```
+@command mosaic.shape.txt
 
 @json mosaic.shape.txt clock
 

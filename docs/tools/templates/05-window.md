@@ -36,11 +36,15 @@ seconds into a count exactly, at whatever rate it is bound.
 
 @rust 05-window/level/src/lib.rs
 
+@cpp cpp/05-window/level/src/level.cpp
+
+@js js/05-window/level/src/level.js
+
+@go go/05-window/level/main.go
+
 At 44.1 kHz, a window of one second hopping every half second is:
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/level.wasm --params '{"window":1,"hop":0.5}' --bound '[{"input":"a","streams":[{"rate":{"num":44100,"den":1}}]}]'
-```
+@command level-hopping.shape.txt
 
 @json level-hopping.shape.txt inputs.0
 
@@ -80,15 +84,19 @@ latency is `longest` and one frame, which the bound rate turns into seconds.
 
 @rust 05-window/still/src/lib.rs
 
+@cpp cpp/05-window/still/src/still.cpp
+
+@js js/05-window/still/src/still.js
+
+@go go/05-window/still/main.go
+
 The window is two frames sliding one at a time: each tick sees a frame and
 the one before it. The node asks for yuv420p, whose first plane is the luma,
 a byte a pixel, and compares only that.
 
 At 15 frames a second, with `longest` of 2:
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/still.wasm --params '{"longest":2}' --bound '[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]'
-```
+@command still.shape.txt
 
 @json still.shape.txt outputs.0
 

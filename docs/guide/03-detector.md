@@ -60,6 +60,71 @@ struct GlowNode {
 }
 ```
 
+**C++**
+
+```cpp
+#include <algorithm>
+#include <array>
+#include <optional>
+
+#include "ffrwd/node.hpp"
+
+struct Params {
+    std::uint8_t threshold;
+    std::uint64_t gap;
+    FFRWD_FIELDS(threshold, gap)
+};
+
+struct Glow {
+    ffrwd::Span span;
+    std::uint32_t x = 0;
+    std::uint32_t y = 0;
+    std::uint32_t w = 0;
+    std::uint32_t h = 0;
+    FFRWD_FIELDS(span, x, y, w, h)
+};
+```
+
+**JavaScript**
+
+```js
+import { defineNode, Input, Output, Shape, SPAN, Spans } from '@ffrwd/node';
+
+const GLOW = { ...SPAN, x: 'integer', y: 'integer', w: 'integer', h: 'integer' };
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"errors"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+)
+
+type Params struct {
+	Threshold uint8  `json:"threshold"`
+	Gap       uint64 `json:"gap"`
+}
+
+type Glow struct {
+	node.Span
+	X uint32 `json:"x"`
+	Y uint32 `json:"y"`
+	W uint32 `json:"w"`
+	H uint32 `json:"h"`
+}
+
+type GlowNode struct {
+	v         uint32
+	width     int
+	threshold uint8
+	spans     *node.Spans[struct{}]
+}
+```
+
 ## The node
 
 **Rust**
@@ -111,14 +176,175 @@ impl Node for GlowNode {
 ffrwd_node::export!(GlowNode);
 ```
 
+**C++**
+
+```cpp
+struct GlowNode : ffrwd::Node<GlowNode, Params> {
+    static constexpr std::string_view name = "glow";
+    static constexpr std::string_view version = "0.1.0";
+    static constexpr std::string_view params_schema =
+        R"({"type":"object","properties":{"threshold":{"type":"integer","minimum":0,"maximum":255,"default":230},"gap":{"type":"integer","minimum":0,"default":2}},"additionalProperties":false})";
+
+    std::uint32_t v = 0;
+    std::size_t width = 0;
+    std::uint8_t threshold = 0;
+    ffrwd::Spans<> spans;
+
+    static ffrwd::Result<ffrwd::Shape> shape(const Params&, const ffrwd::Bound&) {
+        return ffrwd::Shape()
+            .input(ffrwd::Input::video("v").clock().pixel_formats({"rgba"}))
+            .output(ffrwd::Output::rows("glows").schema<Glow>());
+    }
+
+    static ffrwd::Result<GlowNode> init(Params params, const ffrwd::Init& init) {
+        FFRWD_LET(v, init.stream("v"));
+        const ffrwd::VideoFormat* video = v.video_format();
+        if (!video) return ffrwd::fail("`v` is a video input");
+        GlowNode node;
+        node.v = v.id;
+        node.width = video->width;
+        node.threshold = params.threshold;
+        node.spans = ffrwd::Spans<>().gap(params.gap);
+        return node;
+    }
+
+    ffrwd::Status process(const ffrwd::Tick& tick, ffrwd::Out& out) {
+        auto frame = tick.frame(v);
+        if (!frame) return {};
+        spans.tick(tick.time_base().seconds(frame->pts));
+        ffrwd::Bytes pixels = tick.fetch(v, frame->index);
+        auto box = bright(pixels, width, threshold);
+        if (!box) return {};
+        auto [x, y, w, h] = *box;
+        return out.row("glows", frame->pts, Glow{spans.see(), x, y, w, h});
+    }
+};
+
+FFRWD_EXPORT(GlowNode);
+```
+
+**JavaScript**
+
+```js
+export const node = defineNode({
+  name: 'glow',
+  version: '0.1.0',
+  paramsSchema:
+    '{"type":"object","properties":{"threshold":{"type":"integer","minimum":0,"maximum":255,"default":230},' +
+    '"gap":{"type":"integer","minimum":0,"default":2}},"additionalProperties":false}',
+
+  shape() {
+    return new Shape()
+      .input(Input.video('v').clock().pixelFormats(['rgba']))
+      .output(Output.rows('glows').schema(GLOW));
+  },
+
+  init({ threshold, gap }, init) {
+    const v = init.stream('v');
+    const video = v.videoFormat();
+    if (video === undefined) throw new Error('`v` is a video input');
+    const width = video.width;
+    const spans = new Spans().gap(gap);
+    return {
+      process(tick, out) {
+        const frame = tick.frame(v.id);
+        if (frame === undefined) return;
+        spans.tick(tick.timeBase().seconds(frame.pts));
+        const pixels = tick.fetch(v.id, frame.index);
+        const box = bright(pixels, width, threshold);
+        if (box === undefined) return;
+        const [x, y, w, h] = box;
+        out.row('glows', frame.pts, { ...spans.see(), x, y, w, h });
+      },
+    };
+  },
+});
+```
+
+**Go**
+
+```go
+var Definition = node.Definition[Params]{
+	Name:         "glow",
+	Version:      "0.1.0",
+	ParamsSchema: `{"type":"object","properties":{"threshold":{"type":"integer","minimum":0,"maximum":255,"default":230},"gap":{"type":"integer","minimum":0,"default":2}},"additionalProperties":false}`,
+	Shape: func(Params, *node.Bound) (node.Shape, error) {
+		return node.NewShape().
+			Input(node.VideoInput("v").Clock().PixelFormats("rgba")).
+			Output(node.RowsOutput("glows").Schema(node.SchemaOf[Glow]())), nil
+	},
+	Init: func(params Params, init *node.Init) (node.Instance, error) {
+		v, err := init.Stream("v")
+		if err != nil {
+			return nil, err
+		}
+		video := v.VideoFormat()
+		if video == nil {
+			return nil, errors.New("`v` is a video input")
+		}
+		return &GlowNode{
+			v:         v.ID,
+			width:     int(video.Width),
+			threshold: params.Threshold,
+			spans:     node.NewSpans[struct{}]().Gap(params.Gap),
+		}, nil
+	},
+}
+
+func (g *GlowNode) Process(tick *node.Tick, out *node.Out) error {
+	frame, ok := tick.Frame(g.v)
+	if !ok {
+		return nil
+	}
+	g.spans.Tick(tick.TimeBase().Seconds(frame.Pts))
+	pixels := tick.Fetch(g.v, frame.Index)
+	box, ok := bright(pixels, g.width, g.threshold)
+	if !ok {
+		return nil
+	}
+	glow := Glow{
+		Span: g.spans.See(struct{}{}),
+		X:    box[0],
+		Y:    box[1],
+		W:    box[2],
+		H:    box[3],
+	}
+	return out.Row("glows", frame.Pts, glow)
+}
+
+func init() { node.Export(Definition) }
+
+func main() {}
+```
+
 The box finder between them is plain pixel code; the example holds it whole.
 
 The SDK writes the output's schema from the row's own fields: a float is a
 `number`, a whole number an `integer`, and every field is required. Other
 fields are allowed, so a reader that names only some of them still matches.
 
+**Rust**
+
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/glow.wasm --bound v
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --shape build/glow.wasm --bound v
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/glow.wasm --bound v
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/glow.wasm --bound v
 ```
 
 ```json

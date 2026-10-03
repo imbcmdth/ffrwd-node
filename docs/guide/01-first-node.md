@@ -22,7 +22,66 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-ffrwd-node = { git = "https://github.com/imbcmdth/ffrwd-node", tag = "v0.2.0" }
+ffrwd-node = { path = "../../../../rust" }
+```
+
+**C++**
+
+```sh
+#!/bin/sh
+# Builds build/invert.wasm: the node compiled with wasi-sdk and linked with
+# the ffrwd-node C++ library, which `sh build.sh modules` in the SDK's cpp/
+# directory builds.
+#
+#   FFRWD_NODE        the SDK's cpp/ directory
+#   FFRWD_NODE_BUILD  where its library was built, $FFRWD_NODE/build unless set
+#   WASI_SDK          wasi-sdk 34 or newer
+set -eu
+cd "$(dirname "$0")"
+sdk=${FFRWD_NODE:-../../../../../cpp}
+lib=${FFRWD_NODE_BUILD:-$sdk/build}
+wasi=${WASI_SDK:-C:/tools/wasi-sdk-34.0-x86_64-windows}
+cxx="$wasi/bin/clang++ --target=wasm32-wasip2 -std=c++23 -fno-exceptions -fno-rtti"
+mkdir -p build
+
+$cxx -O2 -I"$sdk/include" -c src/invert.cpp -o build/invert.o
+$cxx -mexec-model=reactor -Wl,--gc-sections -Wl,--strip-all -o build/invert.wasm build/invert.o \
+    "$lib/wasm/libffrwd-node.a" "$lib/wasm/node_module.o" "$lib/gen/node_module_component_type.o"
+```
+
+**JavaScript**
+
+```json
+{
+  "name": "invert",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "@ffrwd/node": "file:../../../../../js"
+  },
+  "devDependencies": {
+    "@bytecodealliance/componentize-js": "0.22.0",
+    "esbuild": "^0.25.0"
+  }
+}
+```
+
+**Go**
+
+```
+module invert
+
+go 1.25
+
+require github.com/imbcmdth/ffrwd-node/go v0.0.0
+
+require go.bytecodealliance.org/pkg v0.2.2 // indirect
+
+replace github.com/imbcmdth/ffrwd-node/go => ../../../../../go
 ```
 
 ## The node
@@ -90,6 +149,131 @@ impl Node for Invert {
 ffrwd_node::export!(Invert);
 ```
 
+**C++**
+
+```cpp
+#include "ffrwd/node.hpp"
+
+struct Invert : ffrwd::Node<Invert> {
+    static constexpr std::string_view name = "invert";
+    static constexpr std::string_view version = "0.1.0";
+
+    std::uint32_t v = 0;
+
+    static ffrwd::Result<ffrwd::Shape> shape(const ffrwd::NoParams&, const ffrwd::Bound&) {
+        return ffrwd::Shape()
+            .input(ffrwd::Input::video("v").clock().pixel_formats({"rgba"}))
+            .output(ffrwd::Output::like("v"))
+            .pure()
+            .one_to_one();
+    }
+
+    static ffrwd::Result<Invert> init(ffrwd::NoParams, const ffrwd::Init& init) {
+        FFRWD_LET(v, init.stream("v"));
+        Invert node;
+        node.v = v.id;
+        return node;
+    }
+
+    ffrwd::Status process(const ffrwd::Tick& tick, ffrwd::Out& out) {
+        auto frame = tick.frame(v);
+        if (!frame) return {};
+        ffrwd::Bytes pixels = tick.fetch(v, frame->index);
+        for (std::size_t at = 0; at < pixels.size(); at += 4)
+            for (std::size_t channel = at; channel < at + 3; ++channel)
+                pixels[channel] = 255 - pixels[channel];
+        return out.frame("v", frame->pts, frame->duration, std::move(pixels));
+    }
+};
+
+FFRWD_EXPORT(Invert);
+```
+
+**JavaScript**
+
+```js
+import { defineNode, Input, Output, Shape } from '@ffrwd/node';
+
+export const node = defineNode({
+  name: 'invert',
+  version: '0.1.0',
+
+  shape() {
+    return new Shape()
+      .input(Input.video('v').clock().pixelFormats(['rgba']))
+      .output(Output.like('v'))
+      .pure()
+      .oneToOne();
+  },
+
+  init(_, init) {
+    const v = init.stream('v').id;
+    return {
+      process(tick, out) {
+        const frame = tick.frame(v);
+        if (frame === undefined) return;
+        const pixels = tick.fetch(v, frame.index);
+        for (let at = 0; at < pixels.length; at += 4) {
+          pixels[at] = 255 - pixels[at];
+          pixels[at + 1] = 255 - pixels[at + 1];
+          pixels[at + 2] = 255 - pixels[at + 2];
+        }
+        out.frame('v', frame.pts, frame.duration, pixels);
+      },
+    };
+  },
+});
+```
+
+**Go**
+
+```go
+package main
+
+import node "github.com/imbcmdth/ffrwd-node/go"
+
+type Invert struct {
+	v uint32
+}
+
+var Definition = node.Definition[struct{}]{
+	Name:    "invert",
+	Version: "0.1.0",
+	Shape: func(struct{}, *node.Bound) (node.Shape, error) {
+		return node.NewShape().
+			Input(node.VideoInput("v").Clock().PixelFormats("rgba")).
+			Output(node.LikeOutput("v")).
+			Pure().
+			OneToOne(), nil
+	},
+	Init: func(_ struct{}, init *node.Init) (node.Instance, error) {
+		v, err := init.Stream("v")
+		if err != nil {
+			return nil, err
+		}
+		return &Invert{v: v.ID}, nil
+	},
+}
+
+func (i *Invert) Process(tick *node.Tick, out *node.Out) error {
+	frame, ok := tick.Frame(i.v)
+	if !ok {
+		return nil
+	}
+	pixels := tick.Fetch(i.v, frame.Index)
+	for at := 0; at+3 < len(pixels); at += 4 {
+		for channel := at; channel < at+3; channel++ {
+			pixels[channel] = 255 - pixels[channel]
+		}
+	}
+	return out.Frame("v", frame.Pts, frame.Duration, pixels)
+}
+
+func init() { node.Export(Definition) }
+
+func main() {}
+```
+
 A frame's bytes enter the module only when the node fetches them. Until then
 a frame is its pts, its duration and its place in the tick. The last call,
 after the input has ended, may hand no frame at all, and the node returns
@@ -103,18 +287,69 @@ breaks either ends the run with the port named.
 
 **Rust**
 
+The module lands in `target/wasm32-wasip2/release/invert.wasm`:
+
 ```
 cargo build --target wasm32-wasip2 --release
 ```
 
-The module is `target/wasm32-wasip2/release/invert.wasm`.
+**C++**
+
+The module lands in `build/invert.wasm`:
+
+```
+sh build.sh
+```
+
+**JavaScript**
+
+`npm install` once, then `npm run build`, which runs `build.js`. The module
+lands in `build/invert.wasm`:
+
+```js
+import { buildNode } from '@ffrwd/node/build';
+
+await buildNode({ entry: 'src/invert.js', out: 'build/invert.wasm' });
+```
+
+**Go**
+
+The module lands in `build/invert.wasm`:
+
+```
+componentize-go -d "$(go list -m -f '{{.Dir}}' github.com/imbcmdth/ffrwd-node/go)/wit" \
+    -w ffrwd:av/node-module@0.19.1 build -o build/invert.wasm
+```
 
 ## What it says about itself
 
 `ffrwd-wasm` is the host. `--describe` prints what a module declares:
 
+**Rust**
+
 ```
 $ ffrwd-wasm --describe target/wasm32-wasip2/release/invert.wasm
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --describe build/invert.wasm
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --describe build/invert.wasm
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --describe build/invert.wasm
+```
+
+```json
 {
   "world": "node-module",
   "name": "invert",
@@ -150,8 +385,31 @@ shape says the rest.
 `--shape` asks the module for its ports, given the params of a call and the
 inputs it binds. `--bound v` binds one stream to `v`:
 
+**Rust**
+
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/invert.wasm --bound v
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --shape build/invert.wasm --bound v
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/invert.wasm --bound v
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/invert.wasm --bound v
+```
+
+```json
 {
   "bounded": true,
   "clock": {"kind": "input", "port": "v"},
@@ -242,18 +500,74 @@ beside the file's own sound.
 
 ## Starting from a package
 
-`ffrwd init --rust` writes a package whose module is ready to build:
-
 **Rust**
+
+`ffrwd init --rust` writes a package whose module is ready to build:
 
 ```
 $ ffrwd init --rust --name acme/invert
 ```
 
-It writes the manifest `ffrwd.json` and an empty `ffrwd.lock`, a
-`Cargo.toml` taking `ffrwd-node` and `ffrwd-frame`, and a node named
-`passthrough` that hands its one video input back untouched. Beside them go
-`src/passthrough.sql`, which declares the module as the package's export,
-`recipes/passthrough.sql`, a query calling it, and a `README.md`. The node's
-work goes in its tick. Chapter 10 turns such a package into one ready to
-publish.
+**C++**
+
+`ffrwd init` writes no C++ module, so the package is written by hand. This
+one is `docs/examples/cpp/01-first-node/scaffold` in
+[ffrwd-node](https://github.com/imbcmdth/ffrwd-node):
+
+```
+ffrwd.json
+ffrwd.lock
+build.sh
+src/passthrough.cpp
+src/passthrough.sql
+recipes/passthrough.sql
+README.md
+.ffrwdignore
+.gitignore
+```
+
+**JavaScript**
+
+`ffrwd init` writes no JavaScript module, so the package is written by hand.
+This one is `docs/examples/js/01-first-node/scaffold` in
+[ffrwd-node](https://github.com/imbcmdth/ffrwd-node):
+
+```
+ffrwd.json
+ffrwd.lock
+package.json
+build.js
+src/invert.js
+src/passthrough.sql
+recipes/passthrough.sql
+README.md
+.ffrwdignore
+.gitignore
+```
+
+**Go**
+
+`ffrwd init` writes no Go module, so the package is written by hand. This
+one is `docs/examples/go/01-first-node/scaffold` in
+[ffrwd-node](https://github.com/imbcmdth/ffrwd-node):
+
+```
+ffrwd.json
+ffrwd.lock
+go.mod
+go.sum
+main.go
+build.sh
+src/passthrough.sql
+recipes/passthrough.sql
+README.md
+.ffrwdignore
+.gitignore
+```
+
+The package holds the manifest `ffrwd.json` and an empty `ffrwd.lock`, the
+build files, and a node named `passthrough` that hands its one video input
+back untouched. Beside them go `src/passthrough.sql`, which declares the
+module as the package's export, `recipes/passthrough.sql`, a query calling
+it, and a `README.md`. The node's work goes in its tick. Chapter 10 turns
+such a package into one ready to publish.

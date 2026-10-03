@@ -31,7 +31,26 @@ centred on that point as far as the picture allows.
 ffrwd-frame = { git = "https://github.com/imbcmdth/ffrwd-frame", tag = "v0.1.1" }
 ```
 
+**C++**
+
+The crop and the resize are the examples' own `common/resize.hpp`, which the
+build puts on the include path:
+
+@code sh cpp/02-filter/zoom/build.sh 17-17
+
+**Go**
+
+The crop and the resize are the example's own `resize.go`:
+
+@code go go/02-filter/zoom/resize.go
+
 @rust 02-filter/zoom/src/lib.rs
+
+@cpp cpp/02-filter/zoom/src/zoom.cpp
+
+@js js/02-filter/zoom/src/zoom.js
+
+@go go/02-filter/zoom/main.go
 
 **The clock.** The input `v` is the clock, so the node ticks once per frame
 of `v` and each tick hands that frame. Its pixels arrive in the format the
@@ -76,6 +95,12 @@ The call's params land in the node's options: `zoom=amount=3:x=0.25:y=0.5`.
 
 @rust 02-filter/blend/src/lib.rs
 
+@cpp cpp/02-filter/blend/src/blend.cpp
+
+@js js/02-filter/blend/src/blend.js
+
+@go go/02-filter/blend/main.go
+
 **Lockstep.** `over` is paired lockstep with the clock: each tick hands the
 frame of `over` at exactly the clock's pts, one frame per tick. That holds
 only when both pictures come from one source, through nodes that hand one
@@ -103,9 +128,7 @@ line up byte for byte. A node that reads two pictures of different sizes
 leaves that out and reads each stream's size when it opens. The shape says
 it on the input:
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/blend.wasm --bound v,over
-```
+@command blend.shape.txt
 
 @json blend.shape.txt inputs.1
 

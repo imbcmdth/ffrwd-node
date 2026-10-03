@@ -270,10 +270,459 @@ impl Node for Cutin {
 ffrwd_node::export!(Cutin);
 ```
 
+**C++**
+
+```cpp
+#include <algorithm>
+#include <optional>
+#include <string>
+
+#include "ffrwd/node.hpp"
+
+/// The tag a feeder puts on its stream to say its pts are programme time.
+constexpr std::string_view TIMED = "smart_timed";
+
+struct Params {
+    double lead;
+    double linger;
+    double timeout;
+    FFRWD_FIELDS(lead, linger, timeout)
+};
+
+/// One change in what the host says of the feed, or a note the feeder
+/// wrote beside its picture.
+struct Presence {
+    std::string event;
+    double t = 0.0;
+    double at = 0.0;
+    std::optional<std::string> text;
+    FFRWD_FIELDS(event, t, at, text)
+};
+
+/// What a feeder writes beside its picture.
+struct Note {
+    std::string text;
+    FFRWD_FIELDS(text)
+};
+
+struct Cutin : ffrwd::Node<Cutin, Params> {
+    static constexpr std::string_view name = "cutin";
+    static constexpr std::string_view version = "0.1.0";
+    static constexpr std::string_view params_schema =
+        R"({"type":"object","properties":{"port":{"type":"integer","minimum":1,"maximum":65535,"default":9000},"lead":{"type":"number","minimum":0,"maximum":60,"default":0.5},"linger":{"type":"number","minimum":0,"maximum":60,"default":0},"timeout":{"type":"number","minimum":0,"maximum":60,"default":1}},"additionalProperties":false})";
+
+    std::uint32_t v = 0;
+    std::size_t width = 0;
+    std::optional<std::uint32_t> feed;
+    std::optional<std::uint32_t> notes;
+    /// One frame of the programme, in its time base.
+    std::int64_t step = 1;
+
+    static ffrwd::Result<ffrwd::Shape> shape(const Params& params, const ffrwd::Bound&) {
+        auto feed = ffrwd::Input::video("feed")
+                        .optional()
+                        .hold()
+                        .anchor(ffrwd::Anchor::tagged(std::string(TIMED)))
+                        .lead(params.lead)
+                        .group("cam")
+                        .port_param("port")
+                        .like("v")
+                        .pixel_formats({"rgba"});
+        if (params.linger > 0.0) feed.linger(params.linger);
+        if (params.timeout > 0.0) feed.timeout(params.timeout);
+        return ffrwd::Shape()
+            .input(ffrwd::Input::video("v").clock().pixel_formats({"rgba"}))
+            .input(std::move(feed))
+            .input(ffrwd::Input::rows("notes").optional().interval().group("cam").schema<Note>())
+            .output(ffrwd::Output::like("v"))
+            .output(ffrwd::Output::rows("presence").schema<Presence>())
+            .pure()
+            .one_to_one();
+    }
+
+    static ffrwd::Result<Cutin> init(Params, const ffrwd::Init& init) {
+        FFRWD_LET(v, init.stream("v"));
+        const ffrwd::VideoFormat* video = v.video_format();
+        if (!video) return ffrwd::fail("`v` is a video input");
+        Cutin node;
+        node.v = v.id;
+        node.width = video->width;
+        if (const ffrwd::BoundStream* feed = init.optional("feed")) node.feed = feed->id;
+        if (const ffrwd::BoundStream* notes = init.optional("notes")) node.notes = notes->id;
+        if (v.hint.rate)
+            node.step = std::max<std::int64_t>(v.info.time_base.pts(v.hint.rate->duration(1)), 1);
+        return node;
+    }
+
+    ffrwd::Status process(const ffrwd::Tick& tick, ffrwd::Out& out) {
+        auto frame = tick.frame(v);
+        if (!frame) return {};
+        ffrwd::Rational clock = tick.time_base();
+        std::int64_t pts = frame->pts, step = std::max<std::int64_t>(frame->duration.value_or(this->step), 1);
+        auto say = [&](std::string_view event, std::int64_t at) {
+            Presence row{std::string(event), clock.seconds(pts), clock.seconds(at), std::nullopt};
+            return out.row("presence", pts, row);
+        };
+        std::optional<double> countdown;
+        if (feed) {
+            if (auto current = tick.feed(*feed)) {
+                const ffrwd::FeedStart& start = current->start;
+                if (start.known == pts && start.known < start.at) FFRWD_TRY(say("coming", start.at));
+                if (pts <= start.at && start.at < pts + step) FFRWD_TRY(say("on", start.at));
+                if (pts < start.at) countdown = double(start.at - pts) / double(start.at - start.known);
+            }
+            for (const ffrwd::Feed& ended : tick.ended_feeds(*feed)) {
+                if (ended.ends && *ended.ends < pts && pts - step <= *ended.ends)
+                    FFRWD_TRY(say("off", *ended.ends + step));
+            }
+        }
+        if (notes) {
+            ffrwd::Rational base = tick.info(*notes).time_base;
+            for (const ffrwd::Message& message : tick.messages(*notes)) {
+                std::int64_t at = std::max(base.rescale(message.pts, clock), pts);
+                FFRWD_LET(note, message.row<Note>());
+                Presence row{"note", clock.seconds(pts), clock.seconds(at), note.text};
+                FFRWD_TRY(out.row("presence", at, row));
+            }
+        }
+        if (feed) {
+            if (auto shown = tick.frame(*feed))
+                return out.same("v", pts, frame->duration, *feed, shown->index);
+        }
+        if (!countdown) return out.pass("v", v, *frame);
+        double left = *countdown;
+        ffrwd::Bytes pixels = tick.fetch(v, frame->index);
+        auto bar = std::size_t(double(width) * left);
+        std::size_t rows = pixels.size() / (width * 4);
+        for (std::size_t row = rows - std::min<std::size_t>(rows, 8); row < rows; ++row)
+            for (std::size_t x = 0; x < bar; ++x) {
+                std::uint8_t* pixel = pixels.data() + (row * width + x) * 4;
+                pixel[0] = 220, pixel[1] = 40, pixel[2] = 40, pixel[3] = 255;
+            }
+        return out.frame("v", pts, frame->duration, std::move(pixels));
+    }
+};
+
+FFRWD_EXPORT(Cutin);
+```
+
+**JavaScript**
+
+```js
+import { Anchor, defineNode, Input, Output, parse, Shape } from '@ffrwd/node';
+
+/** The tag a feeder puts on its stream to say its pts are programme time. */
+const TIMED = 'smart_timed';
+
+/** One change in what the host says of the feed, or a note the feeder
+ * wrote beside its picture. */
+const PRESENCE = { event: 'string', t: 'number', at: 'number', text: null };
+
+/** What a feeder writes beside its picture. */
+const NOTE = { text: 'string' };
+
+export const node = defineNode({
+  name: 'cutin',
+  version: '0.1.0',
+  paramsSchema:
+    '{"type":"object","properties":{"port":{"type":"integer","minimum":1,"maximum":65535,"default":9000},' +
+    '"lead":{"type":"number","minimum":0,"maximum":60,"default":0.5},' +
+    '"linger":{"type":"number","minimum":0,"maximum":60,"default":0},' +
+    '"timeout":{"type":"number","minimum":0,"maximum":60,"default":1}},"additionalProperties":false}',
+
+  shape({ lead, linger, timeout }) {
+    const feed = Input.video('feed')
+      .optional()
+      .hold()
+      .anchor(Anchor.tagged(TIMED))
+      .lead(lead)
+      .group('cam')
+      .portParam('port')
+      .like('v')
+      .pixelFormats(['rgba']);
+    if (linger > 0) feed.linger(linger);
+    if (timeout > 0) feed.timeout(timeout);
+    return new Shape()
+      .input(Input.video('v').clock().pixelFormats(['rgba']))
+      .input(feed)
+      .input(Input.rows('notes').optional().interval().group('cam').schema(NOTE))
+      .output(Output.like('v'))
+      .output(Output.rows('presence').schema(PRESENCE))
+      .pure()
+      .oneToOne();
+  },
+
+  init(_, init) {
+    const v = init.stream('v');
+    const video = v.videoFormat();
+    if (video === undefined) throw new Error('`v` is a video input');
+    const width = video.width;
+    const feed = init.optional('feed')?.id;
+    const notes = init.optional('notes')?.id;
+    // One frame of the programme, in its time base.
+    const frameStep = v.hint.rate === undefined ? 1 : Math.max(v.info.timeBase.pts(v.hint.rate.duration(1)), 1);
+    return {
+      process(tick, out) {
+        const frame = tick.frame(v.id);
+        if (frame === undefined) return;
+        const clock = tick.timeBase();
+        const [pts, step] = [frame.pts, Math.max(frame.duration ?? frameStep, 1)];
+        const say = (event, at) =>
+          out.row('presence', pts, { event, t: clock.seconds(pts), at: clock.seconds(at), text: null });
+        let countdown;
+        if (feed !== undefined) {
+          const current = tick.feed(feed);
+          if (current !== undefined) {
+            const start = current.start;
+            if (start.known === pts && start.known < start.at) say('coming', start.at);
+            if (pts <= start.at && start.at < pts + step) say('on', start.at);
+            if (pts < start.at) countdown = (start.at - pts) / (start.at - start.known);
+          }
+          for (const ended of tick.endedFeeds(feed)) {
+            if (ended.ends !== undefined && ended.ends < pts && pts - step <= ended.ends) {
+              say('off', ended.ends + step);
+            }
+          }
+        }
+        if (notes !== undefined) {
+          const base = tick.info(notes).timeBase;
+          for (const message of tick.messages(notes)) {
+            const at = Math.max(base.rescale(message.pts, clock), pts);
+            const { text } = parse(new TextDecoder().decode(message.data));
+            out.row('presence', at, { event: 'note', t: clock.seconds(pts), at: clock.seconds(at), text });
+          }
+        }
+        const shown = feed === undefined ? undefined : tick.frame(feed);
+        if (shown !== undefined) return out.same('v', pts, frame.duration, feed, shown.index);
+        if (countdown === undefined) return out.pass('v', v.id, frame);
+        const pixels = tick.fetch(v.id, frame.index);
+        const bar = Math.trunc(width * countdown);
+        const rows = Math.floor(pixels.length / (width * 4));
+        for (let row = Math.max(rows - 8, 0); row < rows; row += 1) {
+          for (let x = 0; x < bar; x += 1) pixels.set([220, 40, 40, 255], (row * width + x) * 4);
+        }
+        out.frame('v', pts, frame.duration, pixels);
+      },
+    };
+  },
+});
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"errors"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+)
+
+// timed is the tag a feeder puts on its stream to say its pts are programme
+// time.
+const timed = "smart_timed"
+
+type Params struct {
+	Lead    float64 `json:"lead"`
+	Linger  float64 `json:"linger"`
+	Timeout float64 `json:"timeout"`
+}
+
+// Presence is one change in what the host says of the feed, or a note the
+// feeder wrote beside its picture.
+type Presence struct {
+	Event string  `json:"event"`
+	T     float64 `json:"t"`
+	At    float64 `json:"at"`
+	Text  *string `json:"text"`
+}
+
+// Note is what a feeder writes beside its picture.
+type Note struct {
+	Text string `json:"text"`
+}
+
+type Cutin struct {
+	v     uint32
+	width int
+	feed  *uint32
+	notes *uint32
+	// One frame of the programme, in its time base.
+	step int64
+}
+
+var Definition = node.Definition[Params]{
+	Name:         "cutin",
+	Version:      "0.1.0",
+	ParamsSchema: `{"type":"object","properties":{"port":{"type":"integer","minimum":1,"maximum":65535,"default":9000},"lead":{"type":"number","minimum":0,"maximum":60,"default":0.5},"linger":{"type":"number","minimum":0,"maximum":60,"default":0},"timeout":{"type":"number","minimum":0,"maximum":60,"default":1}},"additionalProperties":false}`,
+	Shape: func(params Params, _ *node.Bound) (node.Shape, error) {
+		feed := node.VideoInput("feed").
+			Optional().
+			Hold().
+			Anchor(node.Tagged(timed)).
+			Lead(params.Lead).
+			Group("cam").
+			PortParam("port").
+			Like("v").
+			PixelFormats("rgba")
+		if params.Linger > 0 {
+			feed = feed.Linger(params.Linger)
+		}
+		if params.Timeout > 0 {
+			feed = feed.Timeout(params.Timeout)
+		}
+		return node.NewShape().
+			Input(node.VideoInput("v").Clock().PixelFormats("rgba")).
+			Input(feed).
+			Input(node.RowsInput("notes").
+				Optional().
+				Interval().
+				Group("cam").
+				Schema(node.SchemaOf[Note]())).
+			Output(node.LikeOutput("v")).
+			Output(node.RowsOutput("presence").Schema(node.SchemaOf[Presence]())).
+			Pure().
+			OneToOne(), nil
+	},
+	Init: func(_ Params, init *node.Init) (node.Instance, error) {
+		v, err := init.Stream("v")
+		if err != nil {
+			return nil, err
+		}
+		video := v.VideoFormat()
+		if video == nil {
+			return nil, errors.New("`v` is a video input")
+		}
+		step := int64(1)
+		if rate := v.Hint.Rate; rate != nil {
+			step = max(v.Info.TimeBase.Pts(rate.Duration(1)), 1)
+		}
+		cutin := &Cutin{v: v.ID, width: int(video.Width), step: step}
+		if feed := init.Optional("feed"); feed != nil {
+			cutin.feed = &feed.ID
+		}
+		if notes := init.Optional("notes"); notes != nil {
+			cutin.notes = &notes.ID
+		}
+		return cutin, nil
+	},
+}
+
+func (c *Cutin) Process(tick *node.Tick, out *node.Out) error {
+	frame, ok := tick.Frame(c.v)
+	if !ok {
+		return nil
+	}
+	clock := tick.TimeBase()
+	pts, step := frame.Pts, c.step
+	if frame.Duration != nil {
+		step = *frame.Duration
+	}
+	step = max(step, 1)
+	say := func(event string, at int64) error {
+		row := Presence{
+			Event: event,
+			T:     clock.Seconds(pts),
+			At:    clock.Seconds(at),
+		}
+		return out.Row("presence", pts, row)
+	}
+	var countdown *float64
+	if c.feed != nil {
+		if current := tick.Feed(*c.feed); current != nil {
+			start := current.Start
+			if start.Known == pts && start.Known < start.At {
+				if err := say("coming", start.At); err != nil {
+					return err
+				}
+			}
+			if pts <= start.At && start.At < pts+step {
+				if err := say("on", start.At); err != nil {
+					return err
+				}
+			}
+			if pts < start.At {
+				left := float64(start.At-pts) / float64(start.At-start.Known)
+				countdown = &left
+			}
+		}
+		for _, ended := range tick.EndedFeeds(*c.feed) {
+			if ends := ended.Ends; ends != nil && *ends < pts && pts-step <= *ends {
+				if err := say("off", *ends+step); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if c.notes != nil {
+		base := tick.Info(*c.notes).TimeBase
+		for _, message := range tick.Messages(*c.notes) {
+			at := max(base.Rescale(message.Pts, clock), pts)
+			var note Note
+			if err := message.Decode(&note); err != nil {
+				return err
+			}
+			row := Presence{
+				Event: "note",
+				T:     clock.Seconds(pts),
+				At:    clock.Seconds(at),
+				Text:  &note.Text,
+			}
+			if err := out.Row("presence", at, row); err != nil {
+				return err
+			}
+		}
+	}
+	if c.feed != nil {
+		if shown, ok := tick.Frame(*c.feed); ok {
+			return out.Same("v", pts, frame.Duration, *c.feed, shown.Index)
+		}
+	}
+	if countdown == nil {
+		return out.Pass("v", c.v, frame)
+	}
+	pixels := tick.Fetch(c.v, frame.Index)
+	bar := int(float64(c.width) * *countdown)
+	rows := len(pixels) / (c.width * 4)
+	for n := 0; n < 8 && n < rows; n++ {
+		row := pixels[(rows-1-n)*c.width*4:]
+		for at := 0; at < bar*4; at += 4 {
+			copy(row[at:at+4], []byte{220, 40, 40, 255})
+		}
+	}
+	return out.Frame("v", pts, frame.Duration, pixels)
+}
+
+func init() { node.Export(Definition) }
+
+func main() {}
+```
+
 The feed and the notes, as the shape has them:
+
+**Rust**
 
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/cutin.wasm --params '{"port":9100}' --bound '[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]'
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --shape build/cutin.wasm --params '{"port":9100}' --bound '[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]'
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/cutin.wasm --params '{"port":9100}' --bound '[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]'
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/cutin.wasm --params '{"port":9100}' --bound '[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]'
 ```
 
 ```json
@@ -519,11 +968,431 @@ impl Node for Mosaic {
 ffrwd_node::export!(Mosaic);
 ```
 
+**C++**
+
+```cpp
+#include <algorithm>
+#include <array>
+#include <vector>
+
+#include "ffrwd/node.hpp"
+#include "resize.hpp"
+
+constexpr std::array<std::uint8_t, 4> DOWN{48, 48, 48, 255};
+
+struct Params {
+    std::size_t columns;
+    std::uint32_t width;
+    std::uint32_t height;
+    FFRWD_FIELDS(columns, width, height)
+};
+
+struct Tile {
+    std::uint32_t id = 0;
+    std::size_t width = 0;
+    std::size_t height = 0;
+    resize::Rect cell;
+};
+
+struct Mosaic : ffrwd::Node<Mosaic, Params> {
+    static constexpr std::string_view name = "mosaic";
+    static constexpr std::string_view version = "0.1.0";
+    static constexpr std::string_view params_schema =
+        R"({"type":"object","properties":{"columns":{"type":"integer","minimum":1,"default":2},"width":{"type":"integer","minimum":16,"default":1280},"height":{"type":"integer","minimum":16,"default":720}},"additionalProperties":false})";
+
+    std::vector<Tile> tiles;
+    std::size_t width = 0;
+    std::size_t height = 0;
+
+    /// `pixels`, a `tile`'s picture, resized into its cell of `canvas`.
+    ffrwd::Status put(ffrwd::Bytes& canvas, const Tile& tile, const ffrwd::Bytes& pixels) const {
+        if (auto wrong = resize::misfit(pixels.size(), tile.width, tile.height)) return ffrwd::fail(*wrong);
+        std::size_t w = tile.cell.width(), h = tile.cell.height();
+        auto whole = resize::Rect::whole(tile.width, tile.height);
+        auto rgb = resize::bilinear(pixels.data(), tile.width, tile.height, whole, w, h);
+        for (std::size_t y = 0; y < h; ++y)
+            for (std::size_t x = 0; x < w; ++x) {
+                std::size_t at = ((tile.cell.y0 + y) * width + tile.cell.x0 + x) * 4;
+                for (std::size_t channel = 0; channel < 3; ++channel)
+                    canvas[at + channel] = rgb[(y * w + x) * 3 + channel];
+            }
+        return {};
+    }
+
+    void fill(ffrwd::Bytes& canvas, resize::Rect cell, std::array<std::uint8_t, 4> colour) const {
+        for (std::size_t y = cell.y0; y < cell.y1; ++y)
+            for (std::size_t x = cell.x0; x < cell.x1; ++x)
+                std::copy(colour.begin(), colour.end(), canvas.data() + (y * width + x) * 4);
+    }
+
+    static ffrwd::Result<ffrwd::Shape> shape(const Params& params, const ffrwd::Bound&) {
+        return ffrwd::Shape()
+            .input(ffrwd::Input::video("v")
+                       .many()
+                       .hold()
+                       .anchor(ffrwd::Anchor::shared_clock())
+                       .pixel_formats({"rgba"}))
+            .output(ffrwd::Output::video("v").size(params.width, params.height).pixel_format("rgba"))
+            .rate_of("v")
+            .pure();
+    }
+
+    static ffrwd::Result<Mosaic> init(Params params, const ffrwd::Init& init) {
+        std::size_t width = params.width, height = params.height;
+        auto streams = init.streams("v");
+        std::size_t columns = std::max<std::size_t>(std::min(params.columns, streams.size()), 1);
+        std::size_t rows = std::max<std::size_t>((streams.size() + columns - 1) / columns, 1);
+        Mosaic node;
+        for (std::size_t n = 0; n < streams.size(); ++n) {
+            const ffrwd::VideoFormat* video = streams[n]->video_format();
+            if (!video) return ffrwd::fail("`v` takes pictures");
+            std::size_t column = n % columns, row = n / columns;
+            node.tiles.push_back(Tile{
+                streams[n]->id,
+                video->width,
+                video->height,
+                {column * width / columns, row * height / rows, (column + 1) * width / columns,
+                 (row + 1) * height / rows},
+            });
+        }
+        node.width = width;
+        node.height = height;
+        return node;
+    }
+
+    ffrwd::Status process(const ffrwd::Tick& tick, ffrwd::Out& out) {
+        ffrwd::Bytes canvas(width * height * 4);
+        for (std::size_t at = 3; at < canvas.size(); at += 4) canvas[at] = 255;
+        bool shown = false;
+        for (const Tile& tile : tiles) {
+            if (auto frame = tick.frame(tile.id)) {
+                FFRWD_TRY(put(canvas, tile, tick.fetch(tile.id, frame->index)));
+                shown = true;
+            } else if (!tick.feed(tile.id)) {
+                fill(canvas, tile.cell, DOWN);
+            }
+        }
+        if (!shown && tick.last()) return {};
+        return out.frame("v", tick.pts(), 1, std::move(canvas));
+    }
+};
+
+FFRWD_EXPORT(Mosaic);
+```
+
+**JavaScript**
+
+```js
+import { Anchor, defineNode, Input, Output, Shape } from '@ffrwd/node';
+
+const DOWN = [48, 48, 48, 255];
+
+// Pillow's bilinear resize, written out here: it works in the same fixed
+// point, pass for pass, as the ffrwd-frame crate the Rust example calls, so
+// both modules make the same picture to the byte.
+
+/** For each of `size` pixels made from `from`: the first pixel it reads, and
+ * its weights in fixed point with `bits` fractional bits. */
+function taps(from, size) {
+  const scale = from / size;
+  const stretch = Math.max(scale, 1);
+  const kernels = [];
+  for (let at = 0; at < size; at += 1) {
+    const centre = (at + 0.5) * scale;
+    let first = Math.max(Math.floor(centre - stretch), 0);
+    const end = Math.min(Math.ceil(centre + stretch), from);
+    const weights = [];
+    for (let x = first; x < end; x += 1) {
+      const weight = Math.max(0, 1 - Math.abs((x - (centre - 0.5)) * (1 / stretch)));
+      if (weight === 0 && weights.length === 0) first += 1;
+      else weights.push(weight);
+    }
+    const sum = weights.reduce((total, weight) => total + weight, 0);
+    while (weights.at(-1) === 0) weights.pop();
+    kernels.push({ first, weights: weights.map((weight) => (sum === 0 ? weight : weight / sum)) });
+  }
+  const most = Math.max(0, ...kernels.flatMap((kernel) => kernel.weights));
+  let bits = 0;
+  while (bits < 21 && Math.round(most * 2 ** (bits + 1)) < 2 ** 15) bits += 1;
+  for (const kernel of kernels) kernel.weights = kernel.weights.map((weight) => Math.round(weight * 2 ** bits));
+  return { kernels, bits };
+}
+
+/** `size` pixels across (or down) made from each row (or column) of an rgb
+ * picture `width` x `height`, rounded back to eight bits. */
+function pass(rgb, width, height, size, across) {
+  const { kernels, bits } = taps(across ? width : height, size);
+  const [w, h] = across ? [size, height] : [width, size];
+  const out = new Uint8Array(w * h * 3);
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const { first, weights } = kernels[across ? x : y];
+      for (let channel = 0; channel < 3; channel += 1) {
+        let sum = 1 << (bits - 1);
+        for (let n = 0; n < weights.length; n += 1) {
+          const at = across ? (y * width + first + n) * 3 : ((first + n) * width + x) * 3;
+          sum += rgb[at + channel] * weights[n];
+        }
+        out[(y * w + x) * 3 + channel] = Math.min(Math.max(sum >> bits, 0), 255);
+      }
+    }
+  }
+  return out;
+}
+
+/** `rect` of an rgba picture `stride` pixels wide, resized to `width` x
+ * `height`: across first, then down, as Pillow does. Red, green and blue. */
+function resize(pixels, stride, rect, width, height) {
+  let [w, h] = [rect.x1 - rect.x0, rect.y1 - rect.y0];
+  let rgb = new Uint8Array(w * h * 3);
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const [from, to] = [((rect.y0 + y) * stride + rect.x0 + x) * 4, (y * w + x) * 3];
+      for (let channel = 0; channel < 3; channel += 1) rgb[to + channel] = pixels[from + channel];
+    }
+  }
+  if (w !== width) [rgb, w] = [pass(rgb, w, h, width, true), width];
+  if (h !== height) [rgb, h] = [pass(rgb, w, h, height, false), height];
+  return rgb;
+}
+
+/** Every pixel of `cell` of a `width`-wide canvas set to `colour`. */
+function fill(canvas, width, cell, colour) {
+  const row = new Uint8Array((cell.x1 - cell.x0) * 4);
+  for (let at = 0; at < row.length; at += 4) row.set(colour, at);
+  for (let y = cell.y0; y < cell.y1; y += 1) canvas.set(row, (y * width + cell.x0) * 4);
+}
+
+/** `pixels`, a `tile`'s picture, resized into its cell of a `width`-wide
+ * canvas. */
+function put(canvas, width, tile, pixels) {
+  const { cell } = tile;
+  const [w, h] = [cell.x1 - cell.x0, cell.y1 - cell.y0];
+  const whole = { x0: 0, y0: 0, x1: tile.width, y1: tile.height };
+  const rgb = resize(pixels, tile.width, whole, w, h);
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const [from, to] = [(y * w + x) * 3, ((cell.y0 + y) * width + cell.x0 + x) * 4];
+      for (let channel = 0; channel < 3; channel += 1) canvas[to + channel] = rgb[from + channel];
+    }
+  }
+}
+
+export const node = defineNode({
+  name: 'mosaic',
+  version: '0.1.0',
+  paramsSchema:
+    '{"type":"object","properties":{"columns":{"type":"integer","minimum":1,"default":2},' +
+    '"width":{"type":"integer","minimum":16,"default":1280},"height":{"type":"integer","minimum":16,"default":720}},' +
+    '"additionalProperties":false}',
+
+  shape({ width, height }) {
+    return new Shape()
+      .input(Input.video('v').many().hold().anchor(Anchor.sharedClock).pixelFormats(['rgba']))
+      .output(Output.video('v').size(width, height).pixelFormat('rgba'))
+      .rateOf('v')
+      .pure();
+  },
+
+  init({ columns, width, height }, init) {
+    const streams = init.streams('v');
+    columns = Math.max(Math.min(columns, streams.length), 1);
+    const rows = Math.max(Math.ceil(streams.length / columns), 1);
+    const tiles = streams.map((stream, n) => {
+      const video = stream.videoFormat();
+      if (video === undefined) throw new Error('`v` takes pictures');
+      const [column, row] = [n % columns, Math.floor(n / columns)];
+      return {
+        id: stream.id,
+        width: video.width,
+        height: video.height,
+        cell: {
+          x0: Math.floor((column * width) / columns),
+          y0: Math.floor((row * height) / rows),
+          x1: Math.floor(((column + 1) * width) / columns),
+          y1: Math.floor(((row + 1) * height) / rows),
+        },
+      };
+    });
+    const whole = { x0: 0, y0: 0, x1: width, y1: height };
+    return {
+      process(tick, out) {
+        const canvas = new Uint8Array(width * height * 4);
+        fill(canvas, width, whole, [0, 0, 0, 255]);
+        let shown = false;
+        for (const tile of tiles) {
+          const frame = tick.frame(tile.id);
+          if (frame !== undefined) {
+            put(canvas, width, tile, tick.fetch(tile.id, frame.index));
+            shown = true;
+          } else if (tick.feed(tile.id) === undefined) {
+            fill(canvas, width, tile.cell, DOWN);
+          }
+        }
+        if (!shown && tick.last()) return;
+        out.frame('v', tick.pts(), 1, canvas);
+      },
+    };
+  },
+});
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"bytes"
+	"errors"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+)
+
+var down = [4]byte{48, 48, 48, 255}
+
+type Params struct {
+	Columns int    `json:"columns"`
+	Width   uint32 `json:"width"`
+	Height  uint32 `json:"height"`
+}
+
+type Tile struct {
+	id     uint32
+	width  int
+	height int
+	cell   Rect
+}
+
+type Mosaic struct {
+	tiles  []Tile
+	width  int
+	height int
+}
+
+// put is pixels, a tile's picture, resized into its cell of canvas.
+func (m *Mosaic) put(canvas []byte, tile Tile, pixels []byte) error {
+	w, h := tile.cell.Width(), tile.cell.Height()
+	whole := Whole(tile.width, tile.height)
+	rgb, err := resize(pixels, tile.width, tile.height, whole, w, h)
+	if err != nil {
+		return err
+	}
+	for y := range h {
+		for x := range w {
+			at := ((tile.cell.Y0+y)*m.width + tile.cell.X0 + x) * 4
+			copy(canvas[at:at+3], rgb[(y*w+x)*3:])
+		}
+	}
+	return nil
+}
+
+func (m *Mosaic) fill(canvas []byte, cell Rect, colour [4]byte) {
+	for y := cell.Y0; y < cell.Y1; y++ {
+		row := canvas[(y*m.width+cell.X0)*4 : (y*m.width+cell.X1)*4]
+		for at := 0; at < len(row); at += 4 {
+			copy(row[at:at+4], colour[:])
+		}
+	}
+}
+
+var Definition = node.Definition[Params]{
+	Name:         "mosaic",
+	Version:      "0.1.0",
+	ParamsSchema: `{"type":"object","properties":{"columns":{"type":"integer","minimum":1,"default":2},"width":{"type":"integer","minimum":16,"default":1280},"height":{"type":"integer","minimum":16,"default":720}},"additionalProperties":false}`,
+	Shape: func(params Params, _ *node.Bound) (node.Shape, error) {
+		return node.NewShape().
+			Input(node.VideoInput("v").
+				Many().
+				Hold().
+				Anchor(node.SharedClock).
+				PixelFormats("rgba")).
+			Output(node.VideoOutput("v").
+				Size(params.Width, params.Height).
+				PixelFormat("rgba")).
+			RateOf("v").
+			Pure(), nil
+	},
+	Init: func(params Params, init *node.Init) (node.Instance, error) {
+		width, height := int(params.Width), int(params.Height)
+		streams := init.Streams("v")
+		columns := max(min(params.Columns, len(streams)), 1)
+		rows := max((len(streams)+columns-1)/columns, 1)
+		var tiles []Tile
+		for n, stream := range streams {
+			video := stream.VideoFormat()
+			if video == nil {
+				return nil, errors.New("`v` takes pictures")
+			}
+			column, row := n%columns, n/columns
+			tiles = append(tiles, Tile{
+				id:     stream.ID,
+				width:  int(video.Width),
+				height: int(video.Height),
+				cell: Rect{
+					X0: column * width / columns,
+					Y0: row * height / rows,
+					X1: (column + 1) * width / columns,
+					Y1: (row + 1) * height / rows,
+				},
+			})
+		}
+		return &Mosaic{tiles: tiles, width: width, height: height}, nil
+	},
+}
+
+func (m *Mosaic) Process(tick *node.Tick, out *node.Out) error {
+	canvas := bytes.Repeat([]byte{0, 0, 0, 255}, m.width*m.height)
+	shown := false
+	for _, tile := range m.tiles {
+		frame, ok := tick.Frame(tile.id)
+		switch {
+		case ok:
+			if err := m.put(canvas, tile, tick.Fetch(tile.id, frame.Index)); err != nil {
+				return err
+			}
+			shown = true
+		case tick.Feed(tile.id) == nil:
+			m.fill(canvas, tile.cell, down)
+		}
+	}
+	if !shown && tick.Last() {
+		return nil
+	}
+	one := int64(1)
+	return out.Frame("v", tick.Pts(), &one, canvas)
+}
+
+func init() { node.Export(Definition) }
+
+func main() {}
+```
+
 A port that takes many streams cannot be the clock, so the node ticks at a
 rate, here the rate of `v`'s first stream, which the compiler reads off it:
 
+**Rust**
+
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/mosaic.wasm --params '{"columns":3,"width":960,"height":240}' --bound v,v,v
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --shape build/mosaic.wasm --params '{"columns":3,"width":960,"height":240}' --bound v,v,v
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/mosaic.wasm --params '{"columns":3,"width":960,"height":240}' --bound v,v,v
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/mosaic.wasm --params '{"columns":3,"width":960,"height":240}' --bound v,v,v
 ```
 
 ```json

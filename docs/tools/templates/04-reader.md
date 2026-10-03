@@ -50,12 +50,16 @@ ticks it ran.
 
 @rust 04-reader/band/src/lib.rs
 
+@cpp cpp/04-reader/band/src/band.cpp
+
+@js js/04-reader/band/src/band.js
+
+@go go/04-reader/band/main.go
+
 The cue input carries `ahead` from the call's `fade`, so a cue arrives a
 fade's length before it starts. Its shape:
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/band.wasm --bound v,cues
-```
+@command band.shape.txt
 
 @json band.shape.txt inputs.1
 
@@ -90,13 +94,17 @@ or handing it on, ends the run with the port named.
 
 @rust 04-reader/boxmask/src/lib.rs
 
+@cpp cpp/04-reader/boxmask/src/boxmask.cpp
+
+@js js/04-reader/boxmask/src/boxmask.js
+
+@go go/04-reader/boxmask/main.go
+
 The rows are lockstep with the picture: `glow` stamps a row for a frame with
 that frame's pts. The output is like `v` with one field changed, its pixel
 format, so the matte is always the picture's size.
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/boxmask.wasm --bound v,boxes
-```
+@command boxmask.shape.txt
 
 @json boxmask.shape.txt inputs.0.accepts
 

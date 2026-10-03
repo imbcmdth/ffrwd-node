@@ -85,6 +85,148 @@ mod tests {
 }
 ```
 
+**C++**
+
+```cpp
+#include "glow.cpp"
+
+#include <algorithm>
+#include <string>
+#include <vector>
+
+#include "check.hpp"
+#include "ffrwd/mock.hpp"
+
+/// The `start_t` of every row of four lit ticks handed to `workers`
+/// instances in turn, in pts order.
+std::vector<std::string> starts(std::size_t workers) {
+    auto open = [] {
+        auto v = ffrwd::BoundStream::video("v", 0, 2, 2, "rgba", ffrwd::Rational(1, 10));
+        return CHECK_OK(ffrwd::mock::Harness<GlowNode>::open("", {v}));
+    };
+    std::vector<ffrwd::mock::Harness<GlowNode>> instances;
+    for (std::size_t n = 0; n < workers; ++n) instances.push_back(open());
+    std::vector<std::pair<std::int64_t, std::string>> rows;
+    for (std::int64_t n = 0; n < 4; ++n) {
+        auto& worker = instances[std::size_t(n) % workers];
+        auto tick = worker.tick(n).ordinal(std::uint64_t(n)).frame(0, n, ffrwd::Bytes::filled(16, 255));
+        for (auto& row : CHECK_OK(worker.process(tick)).messages("glows")) rows.push_back(row);
+    }
+    std::sort(rows.begin(), rows.end());
+    std::vector<std::string> starts;
+    for (const auto& [pts, row] : rows) starts.push_back(row.substr(0, row.find(',')));
+    return starts;
+}
+
+TEST(spans_kept_across_ticks_split_with_the_workers) {
+    CHECK(starts(1) == std::vector<std::string>(4, R"({"start_t":0.0)"));
+    CHECK(starts(2) == (std::vector<std::string>{R"({"start_t":0.0)", R"({"start_t":0.1)",
+                                                 R"({"start_t":0.0)", R"({"start_t":0.1)"}));
+}
+```
+
+**JavaScript**
+
+```js
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import { BoundStream, Rational } from '@ffrwd/node';
+import { Harness } from '@ffrwd/node/mock';
+
+import { node } from '../src/glow.js';
+
+/** The `start_t` of every row of four lit ticks handed to `workers`
+ * instances in turn, in pts order. */
+function starts(workers) {
+  const open = () => new Harness(node, '', [BoundStream.video('v', 0, 2, 2, 'rgba', new Rational(1, 10))]);
+  const instances = Array.from({ length: workers }, open);
+  const rows = [];
+  for (let n = 0; n < 4; n += 1) {
+    const worker = instances[n % workers];
+    const tick = worker.tick(n).ordinal(n).frame(0, n, new Uint8Array(16).fill(255));
+    rows.push(...worker.process(tick).messages('glows'));
+  }
+  rows.sort(([a], [b]) => a - b);
+  return rows.map(([, row]) => row.split(',')[0]);
+}
+
+test('spans kept across ticks split with the workers', () => {
+  assert.deepEqual(starts(1), Array(4).fill('{"start_t":0'));
+  assert.deepEqual(starts(2), ['{"start_t":0', '{"start_t":0.1', '{"start_t":0', '{"start_t":0.1']);
+});
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"bytes"
+	"reflect"
+	"sort"
+	"strings"
+	"testing"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+	"github.com/imbcmdth/ffrwd-node/go/mock"
+)
+
+// starts is the start_t of every row of four lit ticks handed to workers
+// instances in turn, in pts order.
+func starts(t *testing.T, workers int) []string {
+	t.Helper()
+	open := func() *mock.Harness[Params] {
+		v := node.VideoStream("v", 0, 2, 2, "rgba", node.R(1, 10))
+		h, err := mock.Open(Definition, "", v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return h
+	}
+	instances := make([]*mock.Harness[Params], workers)
+	for n := range instances {
+		instances[n] = open()
+	}
+	var rows []node.TimedText
+	for n := range 4 {
+		worker := instances[n%workers]
+		tick := worker.Tick(int64(n)).
+			WithOrdinal(uint64(n)).
+			WithFrame(0, int64(n), bytes.Repeat([]byte{255}, 16))
+		emitted, err := worker.Process(tick)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, emitted.Messages("glows")...)
+	}
+	sort.Slice(rows, func(a, b int) bool {
+		if rows[a].Pts != rows[b].Pts {
+			return rows[a].Pts < rows[b].Pts
+		}
+		return rows[a].Text < rows[b].Text
+	})
+	var firsts []string
+	for _, row := range rows {
+		first, _, _ := strings.Cut(row.Text, ",")
+		firsts = append(firsts, first)
+	}
+	return firsts
+}
+
+func TestSpansKeptAcrossTicksSplitWithTheWorkers(t *testing.T) {
+	alone := []string{`{"start_t":0`, `{"start_t":0`, `{"start_t":0`, `{"start_t":0`}
+	if got := starts(t, 1); !reflect.DeepEqual(got, alone) {
+		t.Fatalf("%q", got)
+	}
+	split := []string{`{"start_t":0`, `{"start_t":0.1`, `{"start_t":0`, `{"start_t":0.1`}
+	if got := starts(t, 2); !reflect.DeepEqual(got, split) {
+		t.Fatalf("%q", got)
+	}
+}
+```
+
 The host never spreads that `glow` over workers, because its shape does not
 say it is pure. Saying pure with that body would give exactly those rows.
 
@@ -152,6 +294,170 @@ impl Node for GlowNode {
 }
 
 ffrwd_node::export!(GlowNode);
+```
+
+**C++**
+
+```cpp
+struct GlowNode : ffrwd::Node<GlowNode, Params> {
+    static constexpr std::string_view name = "glow";
+    static constexpr std::string_view version = "0.2.0";
+    static constexpr std::string_view params_schema =
+        R"({"type":"object","properties":{"threshold":{"type":"integer","minimum":0,"maximum":255,"default":230},"every":{"type":"integer","minimum":1,"default":30}},"additionalProperties":false})";
+
+    std::uint32_t v = 0;
+    std::size_t width = 0;
+    std::uint8_t threshold = 0;
+    std::uint64_t every = 1;
+    /// One frame of the picture, in its time base.
+    std::int64_t step = 1;
+
+    static ffrwd::Result<ffrwd::Shape> shape(const Params&, const ffrwd::Bound&) {
+        return ffrwd::Shape()
+            .input(ffrwd::Input::video("v").clock().pixel_formats({"rgba"}))
+            .output(ffrwd::Output::rows("glows").schema<Glow>())
+            .pure();
+    }
+
+    static ffrwd::Result<GlowNode> init(Params params, const ffrwd::Init& init) {
+        FFRWD_LET(v, init.stream("v"));
+        const ffrwd::VideoFormat* video = v.video_format();
+        if (!video) return ffrwd::fail("`v` is a video input");
+        GlowNode node;
+        node.v = v.id;
+        node.width = video->width;
+        node.threshold = params.threshold;
+        node.every = params.every;
+        if (v.hint.rate)
+            node.step = std::max<std::int64_t>(v.info.time_base.pts(v.hint.rate->duration(1)), 1);
+        return node;
+    }
+
+    ffrwd::Status process(const ffrwd::Tick& tick, ffrwd::Out& out) {
+        auto frame = tick.frame(v);
+        if (!frame) return {};
+        ffrwd::Bytes pixels = tick.fetch(v, frame->index);
+        auto box = bright(pixels, width, threshold);
+        if (!box) return {};
+        auto [x, y, w, h] = *box;
+        auto into = std::int64_t(tick.ordinal() % every);
+        Glow glow{tick.time_base().seconds(frame->pts - into * step), tick.ordinal() / every, x, y, w, h};
+        return out.row("glows", frame->pts, glow);
+    }
+};
+
+FFRWD_EXPORT(GlowNode);
+```
+
+**JavaScript**
+
+```js
+export const node = defineNode({
+  name: 'glow',
+  version: '0.2.0',
+  paramsSchema:
+    '{"type":"object","properties":{"threshold":{"type":"integer","minimum":0,"maximum":255,"default":230},' +
+    '"every":{"type":"integer","minimum":1,"default":30}},"additionalProperties":false}',
+
+  shape() {
+    return new Shape()
+      .input(Input.video('v').clock().pixelFormats(['rgba']))
+      .output(Output.rows('glows').schema(GLOW))
+      .pure();
+  },
+
+  init({ threshold, every }, init) {
+    const v = init.stream('v');
+    const video = v.videoFormat();
+    if (video === undefined) throw new Error('`v` is a video input');
+    const width = video.width;
+    // One frame of the picture, in its time base.
+    const step = v.hint.rate === undefined ? 1 : Math.max(v.info.timeBase.pts(v.hint.rate.duration(1)), 1);
+    return {
+      process(tick, out) {
+        const frame = tick.frame(v.id);
+        if (frame === undefined) return;
+        const pixels = tick.fetch(v.id, frame.index);
+        const box = bright(pixels, width, threshold);
+        if (box === undefined) return;
+        const [x, y, w, h] = box;
+        const into = tick.ordinal() % every;
+        const glow = {
+          start_t: tick.timeBase().seconds(frame.pts - into * step),
+          id: Math.floor(tick.ordinal() / every),
+          x,
+          y,
+          w,
+          h,
+        };
+        out.row('glows', frame.pts, glow);
+      },
+    };
+  },
+});
+```
+
+**Go**
+
+```go
+var Definition = node.Definition[Params]{
+	Name:         "glow",
+	Version:      "0.2.0",
+	ParamsSchema: `{"type":"object","properties":{"threshold":{"type":"integer","minimum":0,"maximum":255,"default":230},"every":{"type":"integer","minimum":1,"default":30}},"additionalProperties":false}`,
+	Shape: func(Params, *node.Bound) (node.Shape, error) {
+		return node.NewShape().
+			Input(node.VideoInput("v").Clock().PixelFormats("rgba")).
+			Output(node.RowsOutput("glows").Schema(node.SchemaOf[Glow]())).
+			Pure(), nil
+	},
+	Init: func(params Params, init *node.Init) (node.Instance, error) {
+		v, err := init.Stream("v")
+		if err != nil {
+			return nil, err
+		}
+		video := v.VideoFormat()
+		if video == nil {
+			return nil, errors.New("`v` is a video input")
+		}
+		step := int64(1)
+		if rate := v.Hint.Rate; rate != nil {
+			step = max(v.Info.TimeBase.Pts(rate.Duration(1)), 1)
+		}
+		return &GlowNode{
+			v:         v.ID,
+			width:     int(video.Width),
+			threshold: params.Threshold,
+			every:     params.Every,
+			step:      step,
+		}, nil
+	},
+}
+
+func (g *GlowNode) Process(tick *node.Tick, out *node.Out) error {
+	frame, ok := tick.Frame(g.v)
+	if !ok {
+		return nil
+	}
+	pixels := tick.Fetch(g.v, frame.Index)
+	box, ok := bright(pixels, g.width, g.threshold)
+	if !ok {
+		return nil
+	}
+	into := int64(tick.Ordinal() % g.every)
+	glow := Glow{
+		StartT: tick.TimeBase().Seconds(frame.Pts - into*g.step),
+		ID:     tick.Ordinal() / g.every,
+		X:      box[0],
+		Y:      box[1],
+		W:      box[2],
+		H:      box[3],
+	}
+	return out.Row("glows", frame.Pts, glow)
+}
+
+func init() { node.Export(Definition) }
+
+func main() {}
 ```
 
 A glow that lasts across blocks is several spans, one per block, and
@@ -225,6 +531,201 @@ mod tests {
             ids[3]
         );
     }
+}
+```
+
+**C++**
+
+```cpp
+#include "glow.cpp"
+
+#include <algorithm>
+#include <string>
+#include <vector>
+
+#include "check.hpp"
+#include "ffrwd/mock.hpp"
+
+ffrwd::mock::Harness<GlowNode> open() {
+    auto v =
+        ffrwd::BoundStream::video("v", 0, 4, 4, "rgba", ffrwd::Rational(1, 15)).rate(ffrwd::Rational(15, 1));
+    return CHECK_OK(ffrwd::mock::Harness<GlowNode>::open(R"({"every":3})", {v}));
+}
+
+/// A picture lit at one pixel, which moves along the top row.
+ffrwd::Bytes lit(std::size_t n) {
+    ffrwd::Bytes pixels(4 * 4 * 4);
+    std::fill(pixels.data() + (n % 4) * 4, pixels.data() + (n % 4) * 4 + 4, 255);
+    return pixels;
+}
+
+/// Every row of `ticks` ticks handed to `workers` instances in turn, in
+/// pts order.
+std::vector<std::pair<std::int64_t, std::string>> rows(std::size_t ticks, std::size_t workers) {
+    std::vector<ffrwd::mock::Harness<GlowNode>> instances;
+    for (std::size_t n = 0; n < workers; ++n) instances.push_back(open());
+    std::vector<std::pair<std::int64_t, std::string>> rows;
+    for (std::size_t n = 0; n < ticks; ++n) {
+        auto& worker = instances[n % workers];
+        auto tick = worker.tick(std::int64_t(n)).ordinal(n).frame(0, std::int64_t(n), lit(n));
+        for (auto& row : CHECK_OK(worker.process(tick)).messages("glows")) rows.push_back(row);
+    }
+    std::sort(rows.begin(), rows.end());
+    return rows;
+}
+
+TEST(any_number_of_workers_write_the_same_rows) {
+    auto alone = rows(10, 1);
+    CHECK_EQ(alone.size(), 10u);
+    CHECK(rows(10, 2) == alone);
+    CHECK(rows(10, 3) == alone);
+}
+
+TEST(a_sighting_starts_every_so_many_frames) {
+    auto ids = rows(7, 1);
+    CHECK(ids[2].second.starts_with(R"({"start_t":0.0,"id":0,)"));
+    CHECK(ids[3].second.starts_with(R"({"start_t":0.2,"id":1,)"));
+}
+```
+
+**JavaScript**
+
+```js
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import { BoundStream, Rational } from '@ffrwd/node';
+import { Harness } from '@ffrwd/node/mock';
+
+import { node } from '../src/glow.js';
+
+function open() {
+  const v = BoundStream.video('v', 0, 4, 4, 'rgba', new Rational(1, 15)).rate(new Rational(15, 1));
+  return new Harness(node, '{"every":3}', [v]);
+}
+
+/** A picture lit at one pixel, which moves along the top row. */
+function lit(n) {
+  const pixels = new Uint8Array(4 * 4 * 4);
+  pixels.fill(255, (n % 4) * 4, (n % 4) * 4 + 4);
+  return pixels;
+}
+
+/** Every row of `ticks` ticks handed to `workers` instances in turn, in pts
+ * order. */
+function rows(ticks, workers) {
+  const instances = Array.from({ length: workers }, open);
+  const rows = [];
+  for (let n = 0; n < ticks; n += 1) {
+    const worker = instances[n % workers];
+    const tick = worker.tick(n).ordinal(n).frame(0, n, lit(n));
+    rows.push(...worker.process(tick).messages('glows'));
+  }
+  return rows.sort(([a], [b]) => a - b);
+}
+
+test('any number of workers write the same rows', () => {
+  const alone = rows(10, 1);
+  assert.equal(alone.length, 10);
+  assert.deepEqual(rows(10, 2), alone);
+  assert.deepEqual(rows(10, 3), alone);
+});
+
+test('a sighting starts every so many frames', () => {
+  const ids = rows(7, 1).map(([, row]) => row);
+  assert.ok(ids[2].startsWith('{"start_t":0,"id":0,'), ids[2]);
+  assert.ok(ids[3].startsWith('{"start_t":0.2,"id":1,'), ids[3]);
+});
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"reflect"
+	"sort"
+	"strings"
+	"testing"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+	"github.com/imbcmdth/ffrwd-node/go/mock"
+)
+
+func open(t *testing.T) *mock.Harness[Params] {
+	t.Helper()
+	v := node.VideoStream("v", 0, 4, 4, "rgba", node.R(1, 15)).
+		WithRate(node.R(15, 1))
+	h, err := mock.Open(Definition, `{"every":3}`, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
+}
+
+// lit is a picture lit at one pixel, which moves along the top row.
+func lit(n int) []byte {
+	pixels := make([]byte, 4*4*4)
+	for at := (n % 4) * 4; at < (n%4)*4+4; at++ {
+		pixels[at] = 255
+	}
+	return pixels
+}
+
+// rows is every row of ticks ticks handed to workers instances in turn, in
+// pts order.
+func rows(t *testing.T, ticks, workers int) []node.TimedText {
+	t.Helper()
+	instances := make([]*mock.Harness[Params], workers)
+	for n := range instances {
+		instances[n] = open(t)
+	}
+	var rows []node.TimedText
+	for n := range ticks {
+		worker := instances[n%workers]
+		tick := worker.Tick(int64(n)).
+			WithOrdinal(uint64(n)).
+			WithFrame(0, int64(n), lit(n))
+		emitted, err := worker.Process(tick)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, emitted.Messages("glows")...)
+	}
+	sort.Slice(rows, func(a, b int) bool {
+		if rows[a].Pts != rows[b].Pts {
+			return rows[a].Pts < rows[b].Pts
+		}
+		return rows[a].Text < rows[b].Text
+	})
+	return rows
+}
+
+func TestAnyNumberOfWorkersWriteTheSameRows(t *testing.T) {
+	alone := rows(t, 10, 1)
+	if len(alone) != 10 {
+		t.Fatalf("%d rows", len(alone))
+	}
+	if got := rows(t, 10, 2); !reflect.DeepEqual(got, alone) {
+		t.Fatalf("%v", got)
+	}
+	if got := rows(t, 10, 3); !reflect.DeepEqual(got, alone) {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestASightingStartsEverySoManyFrames(t *testing.T) {
+	var ids []string
+	for _, row := range rows(t, 7, 1) {
+		ids = append(ids, row.Text)
+	}
+	if !strings.HasPrefix(ids[2], `{"start_t":0,"id":0,`) {
+		t.Fatal(ids[2])
+	}
+	if !strings.HasPrefix(ids[3], `{"start_t":0.2,"id":1,`) {
+		t.Fatal(ids[3])
+	}
 }
 ```
 

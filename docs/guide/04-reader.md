@@ -146,11 +146,288 @@ impl Node for Band {
 ffrwd_node::export!(Band);
 ```
 
+**C++**
+
+```cpp
+#include <algorithm>
+#include <cmath>
+#include <vector>
+
+#include "ffrwd/node.hpp"
+
+struct Params {
+    double fade;
+    FFRWD_FIELDS(fade)
+};
+
+/// How much of the band `cue` shows at `t`: rising over `fade` seconds
+/// before it starts, whole while it runs, falling over `fade` after it ends.
+double opacity(const ffrwd::Cue& cue, double t, double fade) {
+    if (fade == 0.0) return cue.covers(t) ? 1.0 : 0.0;
+    double rising = (t - (cue.start_t - fade)) / fade;
+    double falling = (cue.end_t + fade - t) / fade;
+    return std::clamp(std::min(rising, falling), 0.0, 1.0);
+}
+
+struct Band : ffrwd::Node<Band, Params> {
+    static constexpr std::string_view name = "band";
+    static constexpr std::string_view version = "0.1.0";
+    static constexpr std::string_view params_schema =
+        R"({"type":"object","properties":{"fade":{"type":"number","minimum":0,"maximum":5,"default":0.5}},"additionalProperties":false})";
+
+    std::uint32_t v = 0;
+    std::size_t width = 0;
+    std::size_t height = 0;
+    double fade = 0.0;
+    std::vector<ffrwd::Cue> cues;
+
+    static ffrwd::Result<ffrwd::Shape> shape(const Params& params, const ffrwd::Bound&) {
+        return ffrwd::Shape()
+            .input(ffrwd::Input::video("v").clock().pixel_formats({"rgba"}))
+            .input(ffrwd::Input::rows("cues")
+                       .interval()
+                       .latency(5.0)
+                       .ahead(params.fade)
+                       .state()
+                       .schema<ffrwd::Cue>())
+            .output(ffrwd::Output::like("v"))
+            .pure()
+            .one_to_one();
+    }
+
+    static ffrwd::Result<Band> init(Params params, const ffrwd::Init& init) {
+        FFRWD_LET(v, init.stream("v"));
+        const ffrwd::VideoFormat* video = v.video_format();
+        if (!video) return ffrwd::fail("`v` is a video input");
+        Band node;
+        node.v = v.id;
+        node.width = video->width;
+        node.height = video->height;
+        node.fade = params.fade;
+        return node;
+    }
+
+    ffrwd::Status fold(const ffrwd::StateRow& row) {
+        FFRWD_LET(cue, row.row<ffrwd::Cue>());
+        cues.push_back(std::move(cue));
+        return {};
+    }
+
+    ffrwd::Status process(const ffrwd::Tick& tick, ffrwd::Out& out) {
+        auto frame = tick.frame(v);
+        if (!frame) return {};
+        double t = tick.time_base().seconds(frame->pts);
+        std::erase_if(cues, [&](const ffrwd::Cue& cue) { return !(cue.end_t + fade > t); });
+        double shown = 0.0;
+        for (const ffrwd::Cue& cue : cues) shown = std::max(shown, opacity(cue, t, fade));
+        if (shown == 0.0) return out.pass("v", v, *frame);
+        ffrwd::Bytes pixels = tick.fetch(v, frame->index);
+        double keep = 1.0 - 0.6 * shown;
+        std::size_t top = height * 4 / 5;
+        for (std::size_t at = top * width * 4; at + 3 < pixels.size(); at += 4)
+            for (std::size_t channel = at; channel < at + 3; ++channel)
+                pixels[channel] = std::uint8_t(std::round(pixels[channel] * keep));
+        return out.frame("v", frame->pts, frame->duration, std::move(pixels));
+    }
+};
+
+FFRWD_EXPORT(Band);
+```
+
+**JavaScript**
+
+```js
+import { CUE, Cue, defineNode, Input, Output, Shape } from '@ffrwd/node';
+
+/** How much of the band `cue` shows at `t`: rising over `fade` seconds
+ * before it starts, whole while it runs, falling over `fade` after it ends. */
+function opacity(cue, t, fade) {
+  if (fade === 0) return cue.covers(t) ? 1 : 0;
+  const rising = (t - (cue.start_t - fade)) / fade;
+  const falling = (cue.end_t + fade - t) / fade;
+  return Math.min(Math.max(Math.min(rising, falling), 0), 1);
+}
+
+export const node = defineNode({
+  name: 'band',
+  version: '0.1.0',
+  paramsSchema:
+    '{"type":"object","properties":{"fade":{"type":"number","minimum":0,"maximum":5,"default":0.5}},' +
+    '"additionalProperties":false}',
+
+  shape({ fade }) {
+    return new Shape()
+      .input(Input.video('v').clock().pixelFormats(['rgba']))
+      .input(Input.rows('cues').interval().latency(5).ahead(fade).state().schema(CUE))
+      .output(Output.like('v'))
+      .pure()
+      .oneToOne();
+  },
+
+  init({ fade }, init) {
+    const v = init.stream('v');
+    const video = v.videoFormat();
+    if (video === undefined) throw new Error('`v` is a video input');
+    const { width, height } = video;
+    let cues = [];
+    return {
+      fold(row) {
+        const { start_t, end_t, text } = row.row();
+        cues.push(new Cue(start_t, end_t, text));
+      },
+      process(tick, out) {
+        const frame = tick.frame(v.id);
+        if (frame === undefined) return;
+        const t = tick.timeBase().seconds(frame.pts);
+        cues = cues.filter((cue) => cue.end_t + fade > t);
+        const shown = Math.max(0, ...cues.map((cue) => opacity(cue, t, fade)));
+        if (shown === 0) return out.pass('v', v.id, frame);
+        const pixels = tick.fetch(v.id, frame.index);
+        const keep = 1 - 0.6 * shown;
+        const top = Math.floor((height * 4) / 5);
+        for (let at = top * width * 4; at < pixels.length; at += 4) {
+          for (let channel = at; channel < at + 3; channel += 1) pixels[channel] = Math.round(pixels[channel] * keep);
+        }
+        out.frame('v', frame.pts, frame.duration, pixels);
+      },
+    };
+  },
+});
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"errors"
+	"math"
+	"slices"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+)
+
+type Params struct {
+	Fade float64 `json:"fade"`
+}
+
+type Band struct {
+	v      uint32
+	width  int
+	height int
+	fade   float64
+	cues   []node.Cue
+}
+
+// opacity is how much of the band cue shows at t: rising over fade seconds
+// before it starts, whole while it runs, falling over fade after it ends.
+func opacity(cue node.Cue, t, fade float64) float64 {
+	if fade == 0 {
+		if cue.Covers(t) {
+			return 1
+		}
+		return 0
+	}
+	rising := (t - (cue.StartT - fade)) / fade
+	falling := (cue.EndT + fade - t) / fade
+	return min(max(min(rising, falling), 0), 1)
+}
+
+var Definition = node.Definition[Params]{
+	Name:         "band",
+	Version:      "0.1.0",
+	ParamsSchema: `{"type":"object","properties":{"fade":{"type":"number","minimum":0,"maximum":5,"default":0.5}},"additionalProperties":false}`,
+	Shape: func(params Params, _ *node.Bound) (node.Shape, error) {
+		return node.NewShape().
+			Input(node.VideoInput("v").Clock().PixelFormats("rgba")).
+			Input(node.RowsInput("cues").
+				Interval().
+				Latency(5).
+				Ahead(params.Fade).
+				State().
+				Schema(node.SchemaOf[node.Cue]())).
+			Output(node.LikeOutput("v")).
+			Pure().
+			OneToOne(), nil
+	},
+	Init: func(params Params, init *node.Init) (node.Instance, error) {
+		v, err := init.Stream("v")
+		if err != nil {
+			return nil, err
+		}
+		video := v.VideoFormat()
+		if video == nil {
+			return nil, errors.New("`v` is a video input")
+		}
+		return &Band{v: v.ID, width: int(video.Width), height: int(video.Height), fade: params.Fade}, nil
+	},
+}
+
+func (b *Band) Fold(row node.StateRow) error {
+	var cue node.Cue
+	if err := row.Decode(&cue); err != nil {
+		return err
+	}
+	b.cues = append(b.cues, cue)
+	return nil
+}
+
+func (b *Band) Process(tick *node.Tick, out *node.Out) error {
+	frame, ok := tick.Frame(b.v)
+	if !ok {
+		return nil
+	}
+	t := tick.TimeBase().Seconds(frame.Pts)
+	b.cues = slices.DeleteFunc(b.cues, func(cue node.Cue) bool { return cue.EndT+b.fade <= t })
+	shown := 0.0
+	for _, cue := range b.cues {
+		shown = max(shown, opacity(cue, t, b.fade))
+	}
+	if shown == 0 {
+		return out.Pass("v", b.v, frame)
+	}
+	pixels := tick.Fetch(b.v, frame.Index)
+	keep := 1 - 0.6*shown
+	top := b.height * 4 / 5
+	for at := top * b.width * 4; at+3 < len(pixels); at += 4 {
+		for channel := at; channel < at+3; channel++ {
+			pixels[channel] = uint8(math.Round(float64(pixels[channel]) * keep))
+		}
+	}
+	return out.Frame("v", frame.Pts, frame.Duration, pixels)
+}
+
+func init() { node.Export(Definition) }
+
+func main() {}
+```
+
 The cue input carries `ahead` from the call's `fade`, so a cue arrives a
 fade's length before it starts. Its shape:
 
+**Rust**
+
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/band.wasm --bound v,cues
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --shape build/band.wasm --bound v,cues
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/band.wasm --bound v,cues
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/band.wasm --bound v,cues
 ```
 
 ```json
@@ -309,12 +586,233 @@ impl Node for BoxMask {
 ffrwd_node::export!(BoxMask);
 ```
 
+**C++**
+
+```cpp
+#include <algorithm>
+#include <cmath>
+
+#include "ffrwd/node.hpp"
+
+/// The fields `boxmask` reads. Any row carrying them will do.
+struct Box {
+    double x = 0.0;
+    double y = 0.0;
+    double w = 0.0;
+    double h = 0.0;
+    FFRWD_FIELDS(x, y, w, h)
+};
+
+/// `value` as a whole pixel from 0 to `limit`.
+std::size_t edge(double value, std::size_t limit) {
+    return std::size_t(std::fmin(std::fmax(value, 0.0), double(limit)));
+}
+
+struct BoxMask : ffrwd::Node<BoxMask> {
+    static constexpr std::string_view name = "boxmask";
+    static constexpr std::string_view version = "0.1.0";
+
+    std::uint32_t v = 0;
+    std::uint32_t boxes = 0;
+    std::size_t width = 0;
+    std::size_t height = 0;
+
+    static ffrwd::Result<ffrwd::Shape> shape(const ffrwd::NoParams&, const ffrwd::Bound&) {
+        return ffrwd::Shape()
+            .input(ffrwd::Input::video("v").clock().timing())
+            .input(ffrwd::Input::rows("boxes").schema<Box>())
+            .output(ffrwd::Output::like("v").pixel_format("gray"))
+            .pure()
+            .one_to_one();
+    }
+
+    static ffrwd::Result<BoxMask> init(ffrwd::NoParams, const ffrwd::Init& init) {
+        FFRWD_LET(v, init.stream("v"));
+        const ffrwd::VideoFormat* video = v.video_format();
+        if (!video) return ffrwd::fail("`v` is a video input");
+        FFRWD_LET(boxes, init.stream("boxes"));
+        BoxMask node;
+        node.v = v.id;
+        node.boxes = boxes.id;
+        node.width = video->width;
+        node.height = video->height;
+        return node;
+    }
+
+    ffrwd::Status process(const ffrwd::Tick& tick, ffrwd::Out& out) {
+        auto frame = tick.frame(v);
+        if (!frame) return {};
+        ffrwd::Bytes mask(width * height);
+        FFRWD_LET(found, tick.rows<Box>(boxes));
+        for (const Box& box : found) {
+            std::size_t x0 = edge(box.x, width), y0 = edge(box.y, height);
+            std::size_t x1 = std::max(edge(box.x + box.w, width), x0), y1 = edge(box.y + box.h, height);
+            for (std::size_t y = y0; y < y1; ++y)
+                std::fill(mask.data() + y * width + x0, mask.data() + y * width + x1, 255);
+        }
+        return out.frame("v", frame->pts, frame->duration, std::move(mask));
+    }
+};
+
+FFRWD_EXPORT(BoxMask);
+```
+
+**JavaScript**
+
+```js
+import { defineNode, Input, Output, Shape } from '@ffrwd/node';
+
+/** The fields `boxmask` reads. Any row carrying them will do. */
+const BOX = { x: 'number', y: 'number', w: 'number', h: 'number' };
+
+export const node = defineNode({
+  name: 'boxmask',
+  version: '0.1.0',
+
+  shape() {
+    return new Shape()
+      .input(Input.video('v').clock().timing())
+      .input(Input.rows('boxes').schema(BOX))
+      .output(Output.like('v').pixelFormat('gray'))
+      .pure()
+      .oneToOne();
+  },
+
+  init(_, init) {
+    const v = init.stream('v');
+    const video = v.videoFormat();
+    if (video === undefined) throw new Error('`v` is a video input');
+    const { width, height } = video;
+    const boxes = init.stream('boxes').id;
+    return {
+      process(tick, out) {
+        const frame = tick.frame(v.id);
+        if (frame === undefined) return;
+        const mask = new Uint8Array(width * height);
+        for (const found of tick.rows(boxes)) {
+          const x0 = Math.min(Math.trunc(Math.max(found.x, 0)), width);
+          const y0 = Math.min(Math.trunc(Math.max(found.y, 0)), height);
+          const x1 = Math.min(Math.trunc(Math.max(found.x + found.w, 0)), width);
+          const y1 = Math.min(Math.trunc(Math.max(found.y + found.h, 0)), height);
+          for (let y = y0; y < y1; y += 1) mask.fill(255, y * width + x0, y * width + Math.max(x1, x0));
+        }
+        out.frame('v', frame.pts, frame.duration, mask);
+      },
+    };
+  },
+});
+```
+
+**Go**
+
+```go
+package main
+
+import (
+	"errors"
+
+	node "github.com/imbcmdth/ffrwd-node/go"
+)
+
+// Box is the fields boxmask reads. Any row carrying them will do.
+type Box struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	W float64 `json:"w"`
+	H float64 `json:"h"`
+}
+
+type BoxMask struct {
+	v      uint32
+	boxes  uint32
+	width  int
+	height int
+}
+
+var Definition = node.Definition[struct{}]{
+	Name:    "boxmask",
+	Version: "0.1.0",
+	Shape: func(struct{}, *node.Bound) (node.Shape, error) {
+		return node.NewShape().
+			Input(node.VideoInput("v").Clock().Timing()).
+			Input(node.RowsInput("boxes").Schema(node.SchemaOf[Box]())).
+			Output(node.LikeOutput("v").PixelFormat("gray")).
+			Pure().
+			OneToOne(), nil
+	},
+	Init: func(_ struct{}, init *node.Init) (node.Instance, error) {
+		v, err := init.Stream("v")
+		if err != nil {
+			return nil, err
+		}
+		video := v.VideoFormat()
+		if video == nil {
+			return nil, errors.New("`v` is a video input")
+		}
+		boxes, err := init.Stream("boxes")
+		if err != nil {
+			return nil, err
+		}
+		return &BoxMask{v: v.ID, boxes: boxes.ID, width: int(video.Width), height: int(video.Height)}, nil
+	},
+}
+
+func (b *BoxMask) Process(tick *node.Tick, out *node.Out) error {
+	frame, ok := tick.Frame(b.v)
+	if !ok {
+		return nil
+	}
+	mask := make([]byte, b.width*b.height)
+	boxes, err := node.ReadRows[Box](tick, b.boxes)
+	if err != nil {
+		return err
+	}
+	for _, found := range boxes {
+		x0 := min(int(max(found.X, 0)), b.width)
+		y0 := min(int(max(found.Y, 0)), b.height)
+		x1 := min(int(max(found.X+found.W, 0)), b.width)
+		y1 := min(int(max(found.Y+found.H, 0)), b.height)
+		for y := y0; y < y1; y++ {
+			row := mask[y*b.width+x0 : y*b.width+max(x1, x0)]
+			for x := range row {
+				row[x] = 255
+			}
+		}
+	}
+	return out.Frame("v", frame.Pts, frame.Duration, mask)
+}
+
+func init() { node.Export(Definition) }
+
+func main() {}
+```
+
 The rows are lockstep with the picture: `glow` stamps a row for a frame with
 that frame's pts. The output is like `v` with one field changed, its pixel
 format, so the matte is always the picture's size.
 
+**Rust**
+
 ```
 $ ffrwd-wasm --shape target/wasm32-wasip2/release/boxmask.wasm --bound v,boxes
+```
+
+**C++**
+
+```
+$ ffrwd-wasm --shape build/boxmask.wasm --bound v,boxes
+```
+
+**JavaScript**
+
+```
+$ ffrwd-wasm --shape build/boxmask.wasm --bound v,boxes
+```
+
+**Go**
+
+```
+$ ffrwd-wasm --shape build/boxmask.wasm --bound v,boxes
 ```
 
 ```json

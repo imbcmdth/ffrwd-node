@@ -6,6 +6,7 @@ import textwrap
 from pathlib import Path
 
 WIDTH = 76
+LABELS = {"**Rust**", "**C++**", "**JavaScript**", "**Go**"}
 
 
 def flush(block, out):
@@ -31,7 +32,7 @@ for path in sorted(Path(__file__).parent.glob("templates/*.md")):
             fenced = not fenced
             out.append(line)
             continue
-        if fenced or not line.strip() or line.startswith(("@", "#", "|", "**Rust**")):
+        if fenced or not line.strip() or line.strip() in LABELS or line.startswith(("@", "#", "|")):
             flush(block, out); block = []
             out.append(line)
             continue

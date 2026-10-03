@@ -39,6 +39,12 @@ workers would get them:
 
 @rust 03-detector/glow/src/lib.rs 87-129
 
+@cpp cpp/03-detector/glow/src/glow_test.cpp
+
+@js js/03-detector/glow/test/glow.test.js
+
+@go go/03-detector/glow/main_test.go
+
 The host never spreads that `glow` over workers, because its shape does not
 say it is pure. Saying pure with that body would give exactly those rows.
 
@@ -54,6 +60,12 @@ stream's own time base, so every row of a block carries exactly the same
 
 @rust 09-pure/glow/src/lib.rs 44-94
 
+@cpp cpp/09-pure/glow/src/glow.cpp 47-94
+
+@js js/09-pure/glow/src/glow.js 22-64
+
+@go go/09-pure/glow/main.go 51-108
+
 A glow that lasts across blocks is several spans, one per block, and
 `ffrwd.merge_spans` writes a row for each. A glow that comes and goes inside
 a block is one span with gaps in it.
@@ -65,6 +77,12 @@ and hand the ticks around, each with its ordinal, as workers would be handed
 them. A pure node writes the same rows whichever way the ticks fall:
 
 @rust 09-pure/glow/src/lib.rs 96-154
+
+@cpp cpp/09-pure/glow/src/glow_test.cpp
+
+@js js/09-pure/glow/test/glow.test.js
+
+@go go/09-pure/glow/main_test.go
 
 The query runs the same at any number of workers:
 

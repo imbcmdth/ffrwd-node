@@ -2,9 +2,9 @@
 
 A node is tested on the machine it is written on, without a host and without
 media, and shipped as a package anyone can install. This chapter turns the
-package `ffrwd init --rust` writes into `acme/levels`, whose node stretches
-a picture's levels, tests it, checks its shape from the command line and
-publishes it.
+package [chapter 1](01-first-node.md) starts from into `acme/levels`, whose
+node stretches a picture's levels, tests it, checks its shape from the
+command line and publishes it.
 
 ## The node
 
@@ -14,6 +14,12 @@ meaning, so the shape refuses it, and the query that makes such a call is
 refused when it compiles.
 
 @rust 10-testing/levels/src/lib.rs 1-69
+
+@cpp cpp/10-testing/levels/src/levels.cpp
+
+@js js/10-testing/levels/src/levels.js
+
+@go go/10-testing/levels/main.go
 
 ## The mock harness
 
@@ -38,10 +44,34 @@ a pts that goes back fails the test.
 
 @rust 10-testing/levels/src/lib.rs 71-120
 
+@cpp cpp/10-testing/levels/src/levels_test.cpp
+
+@js js/10-testing/levels/test/levels.test.js
+
+@go go/10-testing/levels/main_test.go
+
 **Rust**
 
 ```
 cargo test
+```
+
+**C++**
+
+```
+sh build.sh test
+```
+
+**JavaScript**
+
+```
+npm test
+```
+
+**Go**
+
+```
+go test ./...
 ```
 
 ## Shapes on the command line
@@ -50,15 +80,11 @@ cargo test
 alone bind one stream each, at no known rate; a name written again binds one
 more stream to that port:
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound v
-```
+@command levels-names.shape.txt
 
 The list the compiler passes gives every stream its rate:
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound '[{"input":"v","streams":[{"rate":{"num":25,"den":1}}]}]'
-```
+@command levels-rates.shape.txt
 
 `levels` does not turn on the rate, so both print the same shape:
 
@@ -67,12 +93,12 @@ $ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound '[{"input"
 A node that counts in frames or samples does turn on it. `level`, from
 [chapter 5](05-window.md), refuses the names alone:
 
-@out level-names.shape.txt
+@outs level-names.shape.txt
 
 `--params` gives a call's params, and a node's refusal comes back naming the
 node:
 
-@out levels-refused.shape.txt
+@outs levels-refused.shape.txt
 
 The compiler asks the same question for every call, so the query hears the
 refusal where the call is written:
@@ -83,8 +109,8 @@ refusal where the call is written:
 
 ## The package
 
-`ffrwd init --rust` writes the package around the node. After renaming its
-export and recipe to `levels`, it holds:
+The package around the node is chapter 1's, its export and recipe renamed to
+`levels`. It holds:
 
 - `ffrwd.json`, the manifest;
 - `ffrwd.lock`, what the package installed, which nothing but `install`
@@ -97,9 +123,29 @@ export and recipe to `levels`, it holds:
 
 @toml 10-testing/levels/Cargo.toml
 
+@cpp cpp/10-testing/levels/build.sh sh
+
+**JavaScript**
+
+Beside a `build.js` like chapter 1's:
+
+@code json js/10-testing/levels/package.json
+
+**Go**
+
+Beside a `build.sh` that runs chapter 1's `componentize-go` line:
+
+@code - go/10-testing/levels/go.mod
+
 The export names the built module by its path from the package's root:
 
-@sql 10-testing/levels/src/levels.sql
+@rust 10-testing/levels/src/levels.sql sql
+
+@cpp cpp/10-testing/levels/src/levels.sql sql
+
+@js js/10-testing/levels/src/levels.sql sql
+
+@go go/10-testing/levels/src/levels.sql sql
 
 A recipe calls it by its full name, the package's two halves and the
 export's:
@@ -112,7 +158,13 @@ package.
 The manifest names the export and the recipe, depends on the interface the
 module speaks, and says how to test the package:
 
-@json-file 10-testing/levels/ffrwd.json
+@rust 10-testing/levels/ffrwd.json json
+
+@cpp cpp/10-testing/levels/ffrwd.json json
+
+@js js/10-testing/levels/ffrwd.json json
+
+@go go/10-testing/levels/ffrwd.json json
 
 `capabilities` lists what the module asks the host to grant: `nn` for a
 model, `http`, `udp`, `tcp`, `gpu`. `levels` asks for none. `test` is a
@@ -136,8 +188,8 @@ on this machine, before it sends a byte:
 Then it packs the package and sends it. The archive is the manifest, every
 file the manifest names, every module its exports declare, the README and
 the licence, and whatever the manifest's `files` adds. That is why the built
-module ships out of `target/` although `.ffrwdignore` names the directory:
-the module is the package, and the tree it was built from stays home.
+module ships although `.ffrwdignore` names the directory it is built in: the
+module is the package, and the tree it was built from stays home.
 
 A published version never changes. Publishing the same bytes again changes
 nothing; publishing different bytes under the same version is refused, so a

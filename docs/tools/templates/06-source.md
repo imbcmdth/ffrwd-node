@@ -43,9 +43,17 @@ first tick at or past that time; without, it runs until its reader stops.
 
 @rust 06-source/bars/src/lib.rs
 
+@cpp cpp/06-source/bars/src/bars.cpp
+
+@js js/06-source/bars/src/bars.js
+
+@go go/06-source/bars/main.go
+
 Its whole shape, bounded:
 
-@out bars-seconds.shape.txt
+@command bars-seconds.shape.txt
+
+@body bars-seconds.shape.txt
 
 Declared `RETURNS source`, it is called in `FROM`, and the alias carries the
 stream columns it makes:
@@ -64,9 +72,18 @@ frame at the time it was due, in microseconds from its first call.
 
 @rust 06-source/beat/src/lib.rs
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/beat.wasm --params '{"every":0.5}'
-```
+@cpp cpp/06-source/beat/src/beat.cpp
+
+**JavaScript**
+
+Its `build.js` keeps the clocks, which `buildNode` turns off, since `beat`
+reads the wall clock and waits on it.
+
+@code js js/06-source/beat/src/beat.js
+
+@go go/06-source/beat/main.go
+
+@command beat.shape.txt
 
 @json beat.shape.txt clock
 

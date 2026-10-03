@@ -32,9 +32,21 @@ written into a row adds its `start_t` and its `id` to the row's fields.
 
 @rust 03-detector/glow/src/lib.rs 1-25
 
+@cpp cpp/03-detector/glow/src/glow.cpp 1-20
+
+@js js/03-detector/glow/src/glow.js 1-3
+
+@go go/03-detector/glow/main.go 1-27
+
 ## The node
 
 @rust 03-detector/glow/src/lib.rs 42-85
+
+@cpp cpp/03-detector/glow/src/glow.cpp 46-87
+
+@js js/03-detector/glow/src/glow.js 22-54
+
+@go go/03-detector/glow/main.go 48-98
 
 The box finder between them is plain pixel code; the example holds it whole.
 
@@ -42,9 +54,7 @@ The SDK writes the output's schema from the row's own fields: a float is a
 `number`, a whole number an `integer`, and every field is required. Other
 fields are allowed, so a reader that names only some of them still matches.
 
-```
-$ ffrwd-wasm --shape target/wasm32-wasip2/release/glow.wasm --bound v
-```
+@command glow-3.shape.txt
 
 @json glow-3.shape.txt outputs.0
 

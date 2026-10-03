@@ -51,6 +51,41 @@ rustup target add wasm32-wasip2
 cargo build --target wasm32-wasip2 --release
 ```
 
+**C++**
+
+[ffrwd-node's C++
+SDK](https://github.com/imbcmdth/ffrwd-node/tree/main/cpp), with
+[wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases) 34 and
+[wit-bindgen](https://github.com/bytecodealliance/wit-bindgen/releases)
+0.57.1. The examples' crops and resizes are their own.
+
+```
+sh build.sh modules    # in the SDK's cpp/, once
+sh build.sh            # in the module's directory
+```
+
+**JavaScript**
+
+[@ffrwd/node](https://github.com/imbcmdth/ffrwd-node/tree/main/js), built
+into a component with ComponentizeJS. The examples' crops and resizes are
+their own.
+
+```
+npm install
+npm run build
+```
+
+**Go**
+
+[github.com/imbcmdth/ffrwd-node/go](https://github.com/imbcmdth/ffrwd-node/tree/main/go),
+with Go 1.25.5 or newer and componentize-go 0.4.1. The examples' crops and
+resizes are their own.
+
+```
+componentize-go -d "$(go list -m -f '{{.Dir}}' github.com/imbcmdth/ffrwd-node/go)/wit" \
+    -w ffrwd:av/node-module@0.19.1 build -o build/<name>.wasm
+```
+
 The queries read the test media in ffrwd's own repository: `testsrc.mp4`,
 `av.mp4`, `av2.mp4` and `smptebars.mp4`, each four seconds at 320x240 and 15
 frames a second.
