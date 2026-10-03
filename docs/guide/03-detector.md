@@ -1,34 +1,45 @@
 # 3. A detector
 
-A detector reads a picture and says what it found, as rows. It does not hand
-the picture back: a node that draws the boxes, blurs them or writes them to
-a file reads the picture from where it already is, and the rows from the
-detector. This chapter builds `glow`, which finds the bright part of each
-frame and writes a box around it.
+A detector is a node that reads a picture and writes rows that describe what
+it found. A row is one JSON object. A detector does not hand the picture
+back. A node that draws the boxes, blurs them or writes them to a file reads
+the picture from its original stream, and reads the rows from the detector.
+This chapter builds `glow`, which finds the bright part of each frame and
+writes a row that gives the box around that part.
 
 ## Rows out
 
-An output of rows is a stream of JSON objects, one message each, every one
-stamped with a pts. The rows of a frame are stamped with that frame's pts,
-so a reader of the same picture pairs them with the frame they describe.
+An output of rows is a stream of messages. Each message is one JSON object,
+and each is stamped with a pts. The rows about a frame are stamped with that
+frame's pts, so a node that reads the same picture can pair each row with
+the frame the row describes.
 
-A detector writes one row per tick for each thing it sees, and says only
-what is true at that tick. A thing that stays in view for a minute is a row
-on every tick of that minute, not one row written a minute late. A reader
-never waits for a row about a frame it already has.
+A detector writes one row per tick for each thing it sees. A tick is one
+call to the node, and for `glow` there is one tick per frame. Each row says
+only what is true at its tick. A thing that stays in view for a minute gets
+a row on every tick of that minute, not a single row written a minute late.
+That way, a node that reads the rows never waits for a row about a frame it
+already has.
 
 ## start_t names the thing
 
-Rows about one thing seen over many ticks carry the time it was first seen
-as `start_t`, and a number, `id`, that keeps apart two things first seen on
-the same tick. `start_t` is a time every reader can use: a span reducer
-groups the rows by it, and a caption track starts its cue there.
+Rows about one thing that is seen over many ticks carry two fields that name
+the thing. `start_t` is the time at which the thing was first seen. `id` is
+a number that tells apart two things first seen on the same tick. Any reader
+can use `start_t` as a time. A span reducer, which merges the rows of one
+thing into one row, groups the rows by `start_t`. A caption track starts its
+cue at `start_t`.
 
-The SDK can keep the spans. The node marks each tick, then says what it saw;
-it gets back the span the sighting belongs to, started on this tick when
-none is open. A span ends when its thing goes unseen for more ticks than the
-gap allows, or when it has run as long as the longest the node sets. A span
-written into a row adds its `start_t` and its `id` to the row's fields.
+The SDK, which is the library the module is built with, can keep track of
+spans for the node. A span is the stretch of ticks over which one thing is
+seen. On each tick, the node first tells the SDK the time of the tick, and
+then tells the SDK each thing it saw. For each thing, the SDK returns the
+span that the sighting belongs to. If no span is open, the SDK starts a new
+span on this tick. A span ends when its thing goes unseen for more ticks
+than the gap, which is the number of unseen ticks the node lets a span
+survive. A span also ends when it has lasted as long as the longest span the
+node allows. When the node writes a span into a row, the span adds its
+`start_t` and its `id` to the row's fields.
 
 **Rust**
 
@@ -317,11 +328,13 @@ func init() { node.Export(Definition) }
 func main() {}
 ```
 
-The box finder between them is plain pixel code; the example holds it whole.
+The lines between this excerpt and the previous one hold the box finder,
+which is plain pixel code. The full example file contains the box finder.
 
-The SDK writes the output's schema from the row's own fields: a float is a
-`number`, a whole number an `integer`, and every field is required. Other
-fields are allowed, so a reader that names only some of them still matches.
+The SDK writes the JSON schema of the output from the fields of the row. A
+float field becomes a `number`, a whole-number field becomes an `integer`,
+and every field is required. The schema also allows fields that it does not
+name. So a node that reads only some of the fields still matches the output.
 
 **Rust**
 
@@ -359,17 +372,21 @@ $ ffrwd-wasm --shape build/glow.wasm --bound v
 }
 ```
 
-`glow` keeps its spans from one tick to the next, which ties each tick to
-the ticks before it. So its shape does not say it is pure, and the host runs
-it as one instance, one tick at a time, in order. [Chapter 9](09-pure.md)
-makes it pure.
+`glow` keeps its open spans from one tick to the next, so the result of each
+tick depends on the ticks before it. A node like that is not pure. A pure
+node is one in which every tick depends only on what the host, the program
+that runs the node, hands it for that tick. The shape of `glow`, which lists
+its ports and its clock, therefore does not declare the node pure. The host
+runs `glow` as a single instance, which is one running copy of the node, one
+tick at a time, in order. [Chapter 9](09-pure.md) makes `glow` pure.
 
 ## Calling it
 
-A function returning rows alone declares them as an array of records. The
-fields it names are what the query can read of them, a `WHERE` over the rows
-for one. A node that reads the rows is matched against the output's own
-schema instead ([chapter 4](04-reader.md)).
+When a function returns nothing but rows, its declaration gives the return
+type as an array of records. The query can read only the fields that the
+declaration names, for example in a `WHERE` over the rows. A node that reads
+the rows is matched against the output's own schema instead of this
+declaration ([chapter 4](04-reader.md)).
 
 ```sql
 CREATE FUNCTION glow(v video_stream, threshold number DEFAULT 230, gap number DEFAULT 2)
@@ -392,9 +409,12 @@ ffmpeg -i testsrc.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut pipe:1 | \
   -f ndjson glows.ndjson
 ```
 
-`[glows=out0]` labels the rows the port `glows` writes, and the label is a
-data edge like any stream. Written to `.ndjson`, each row gets the `pts` it
-was stamped with and its `time` in seconds beside its own fields:
+In the plan, `[glows=out0]` gives a label to the rows that the port `glows`
+writes. The label names a data edge, which is a connection in the plan that
+carries rows instead of pictures or sound. The plan connects a data edge
+like any other stream. When the rows are written to an `.ndjson` file, each
+row gains two fields beside its own: the `pts` it was stamped with, and its
+`time` in seconds:
 
 ```ndjson
 {"start_t":0.0,"id":0,"x":108,"y":0,"w":52,"h":240,"pts":0,"time":0.0}
@@ -404,12 +424,14 @@ was stamped with and its `time` in seconds beside its own fields:
 
 ## Spans from rows
 
-`ffrwd.merge_spans` turns rows written a tick at a time into one row per
-span. Rows sharing a `start_t` are one span, which keeps the last row's
-fields and ends at the end of the last tick that carried one. A tick with no
-row for it is a gap inside the span, not its end. A span still open after
-`max_span` seconds is written as it stands and carries on as a new one, so
-`max_span` is also the latest a span row leaves.
+`ffrwd.merge_spans` is a function that turns rows written one tick at a time
+into one row per span. Rows that share a `start_t` belong to one span. The
+span's row keeps the fields of the last row in the span. The span ends at
+the end of the last tick that carried a row for it. A tick with no row for
+the span is a gap inside the span, not the end of the span. When a span is
+still open after `max_span` seconds, `merge_spans` writes the span's row as
+it stands and continues with a new span. So `max_span` is also the longest
+that a span's row can wait before it is written.
 
 ```sql
 CREATE FUNCTION glow(v video_stream, threshold number DEFAULT 230, gap number DEFAULT 2)
@@ -433,9 +455,10 @@ ffmpeg -i testsrc.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut pipe:1 | \
   ndjson spans.ndjson
 ```
 
-The reducer is the host's own node, `rowmerge`, and runs beside the rows'
-producer. The bars of `testsrc.mp4` stay bright the whole four seconds, so
-every row `glow` wrote joins one span:
+In the plan, `merge_spans` is `rowmerge`, a node built into the host.
+`rowmerge` runs in the same host as the node that writes the rows. The bars
+of `testsrc.mp4` stay bright for all four seconds, so every row that `glow`
+wrote joins one span:
 
 ```ndjson
 {"end_t":4.0,"h":240,"id":0,"start_t":0.0,"w":170,"x":108,"y":0}
@@ -443,8 +466,10 @@ every row `glow` wrote joins one span:
 
 ## A row for the run
 
-Rows on an output are a stream that other nodes read. A node may also write
-rows for the run itself, which the run reports beside its own; a sink has
-nothing else to say ([chapter 7](07-sink.md)). Those rows have a schema of
-their own, which `--describe` reports as `rows_schema`. `glow` writes none,
-so its `rows_schema` is null.
+The rows on an output port form a stream that other nodes read. A node may
+also write run rows, which go to the run itself instead of to another node.
+The run reports a node's run rows beside the rows it reports about itself. A
+sink writes run rows, because a sink has no output port to write anything
+else on ([chapter 7](07-sink.md)). Run rows have a schema of their own,
+which `--describe` reports as `rows_schema`. `glow` writes no run rows, so
+its `rows_schema` is null.
