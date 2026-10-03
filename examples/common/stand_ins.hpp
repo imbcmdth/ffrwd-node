@@ -1,8 +1,8 @@
 #pragma once
 
 // What the example nodes share: the grey mark `spot` tracks and the one way
-// `dim` draws on a picture. The same stand-ins the Rust examples use, so
-// both write the same rows and the same pixels.
+// `dim` draws on a picture, as the sidecar's stand-in modules have them, so
+// these write the same rows and the same pixels.
 
 #include <algorithm>
 #include <array>
