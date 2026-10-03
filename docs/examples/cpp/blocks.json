@@ -1,0 +1,445 @@
+{
+  "about": "Each code block the guide shows in Rust, and its C++ equivalent. Paths are relative to docs/examples, lines are 1-based and inclusive, `line` is the template's line of the directive or of the block's label. `commands` are command lines whose module path is Rust's; `prose` is text outside blocks that names a Rust tool.",
+  "language": "C++",
+  "label": "**C++**",
+  "outputs": "cpp/out, named as run.py names its own",
+  "blocks": [
+    {
+      "template": "README.md",
+      "line": 43,
+      "rust": {
+        "inline": "the SDK links, then `rustup target add wasm32-wasip2` and `cargo build`"
+      },
+      "cpp": {
+        "label": "**C++**",
+        "text": [
+          "[ffrwd-node](https://github.com/imbcmdth/ffrwd-node)'s `cpp/`, with",
+          "[wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases) 34 and",
+          "[wit-bindgen](https://github.com/bytecodealliance/wit-bindgen/releases) 0.57.1.",
+          "",
+          "```",
+          "sh build.sh modules    # in the SDK's cpp/, once",
+          "sh build.sh            # in the module's directory",
+          "```"
+        ]
+      },
+      "note": "Crops and resizes are the examples' own common/resize.hpp, a port of the ffrwd-frame bilinear."
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 13,
+      "rust": "@toml 01-first-node/invert/Cargo.toml",
+      "cpp": {
+        "file": "cpp/01-first-node/invert/build.sh",
+        "lines": "1-19",
+        "info": "sh"
+      },
+      "note": "The project is the build script: the node compiled with wasi-sdk and linked with the SDK's library."
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 35,
+      "rust": "@rust 01-first-node/invert/src/lib.rs",
+      "cpp": {
+        "file": "cpp/01-first-node/invert/src/invert.cpp",
+        "lines": "1-35",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 48,
+      "rust": {
+        "inline": "cargo build --target wasm32-wasip2 --release"
+      },
+      "cpp": {
+        "text": [
+          "sh build.sh"
+        ],
+        "info": ""
+      },
+      "note": "The next line's `target/wasm32-wasip2/release/invert.wasm` is `build/invert.wasm`."
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 106,
+      "rust": {
+        "inline": "$ ffrwd init --rust --name acme/invert"
+      },
+      "cpp": {
+        "files": [
+          "cpp/01-first-node/scaffold/ffrwd.json",
+          "cpp/01-first-node/scaffold/ffrwd.lock",
+          "cpp/01-first-node/scaffold/build.sh",
+          "cpp/01-first-node/scaffold/src/passthrough.cpp",
+          "cpp/01-first-node/scaffold/src/passthrough.sql",
+          "cpp/01-first-node/scaffold/recipes/passthrough.sql",
+          "cpp/01-first-node/scaffold/README.md",
+          "cpp/01-first-node/scaffold/.ffrwdignore",
+          "cpp/01-first-node/scaffold/.gitignore"
+        ]
+      },
+      "note": "`ffrwd init` has no --cpp, and without --rust it writes a recipe package with no module. The C++ scaffold is written by hand as the C++ equivalent of what --rust writes: build.sh in place of Cargo.toml, src/passthrough.cpp in place of src/lib.rs, the module at build/invert.wasm."
+    },
+    {
+      "template": "02-filter.md",
+      "line": 28,
+      "rust": {
+        "inline": "the ffrwd-frame line of Cargo.toml"
+      },
+      "cpp": {
+        "text": [
+          "#include \"resize.hpp\""
+        ],
+        "info": "cpp",
+        "also": {
+          "file": "cpp/02-filter/zoom/build.sh",
+          "lines": "17-17",
+          "info": "sh"
+        }
+      },
+      "note": "C++ has no ffrwd-frame: common/resize.hpp is the bilinear crop and resize written out, Pillow's as ffrwd-frame has it, and the build adds -I../../common."
+    },
+    {
+      "template": "02-filter.md",
+      "line": 34,
+      "rust": "@rust 02-filter/zoom/src/lib.rs",
+      "cpp": {
+        "file": "cpp/02-filter/zoom/src/zoom.cpp",
+        "lines": "1-82",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "02-filter.md",
+      "line": 77,
+      "rust": "@rust 02-filter/blend/src/lib.rs",
+      "cpp": {
+        "file": "cpp/02-filter/blend/src/blend.cpp",
+        "lines": "1-61",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "03-detector.md",
+      "line": 33,
+      "rust": "@rust 03-detector/glow/src/lib.rs 1-25",
+      "cpp": {
+        "file": "cpp/03-detector/glow/src/glow.cpp",
+        "lines": "1-20",
+        "info": "cpp"
+      },
+      "note": "The node's fields sit in its struct, so they come with the second block."
+    },
+    {
+      "template": "03-detector.md",
+      "line": 37,
+      "rust": "@rust 03-detector/glow/src/lib.rs 42-85",
+      "cpp": {
+        "file": "cpp/03-detector/glow/src/glow.cpp",
+        "lines": "46-87",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "04-reader.md",
+      "line": 51,
+      "rust": "@rust 04-reader/band/src/lib.rs",
+      "cpp": {
+        "file": "cpp/04-reader/band/src/band.cpp",
+        "lines": "1-83",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "04-reader.md",
+      "line": 91,
+      "rust": "@rust 04-reader/boxmask/src/lib.rs",
+      "cpp": {
+        "file": "cpp/04-reader/boxmask/src/boxmask.cpp",
+        "lines": "1-66",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "05-window.md",
+      "line": 37,
+      "rust": "@rust 05-window/level/src/lib.rs",
+      "cpp": {
+        "file": "cpp/05-window/level/src/level.cpp",
+        "lines": "1-74",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "05-window.md",
+      "line": 81,
+      "rust": "@rust 05-window/still/src/lib.rs",
+      "cpp": {
+        "file": "cpp/05-window/still/src/still.cpp",
+        "lines": "1-93",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "06-source.md",
+      "line": 44,
+      "rust": "@rust 06-source/bars/src/lib.rs",
+      "cpp": {
+        "file": "cpp/06-source/bars/src/bars.cpp",
+        "lines": "1-77",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "06-source.md",
+      "line": 65,
+      "rust": "@rust 06-source/beat/src/lib.rs",
+      "cpp": {
+        "file": "cpp/06-source/beat/src/beat.cpp",
+        "lines": "1-60",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "07-sink.md",
+      "line": 45,
+      "rust": "@rust 07-sink/tally/src/lib.rs",
+      "cpp": {
+        "file": "cpp/07-sink/tally/src/tally.cpp",
+        "lines": "1-77",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "08-held.md",
+      "line": 110,
+      "rust": "@rust 08-held/cutin/src/lib.rs",
+      "cpp": {
+        "file": "cpp/08-held/cutin/src/cutin.cpp",
+        "lines": "1-131",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "08-held.md",
+      "line": 152,
+      "rust": "@rust 08-held/mosaic/src/lib.rs",
+      "cpp": {
+        "file": "cpp/08-held/mosaic/src/mosaic.cpp",
+        "lines": "1-107",
+        "info": "cpp"
+      },
+      "note": "The resize into each cell is common/resize.hpp's bilinear, in place of ffrwd-frame's planes."
+    },
+    {
+      "template": "09-pure.md",
+      "line": 40,
+      "rust": "@rust 03-detector/glow/src/lib.rs 87-129",
+      "cpp": {
+        "file": "cpp/03-detector/glow/src/glow_test.cpp",
+        "lines": "1-35",
+        "info": "cpp"
+      },
+      "note": "The tests are a file of their own, which includes the node's source."
+    },
+    {
+      "template": "09-pure.md",
+      "line": 55,
+      "rust": "@rust 09-pure/glow/src/lib.rs 44-94",
+      "cpp": {
+        "file": "cpp/09-pure/glow/src/glow.cpp",
+        "lines": "47-94",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "09-pure.md",
+      "line": 67,
+      "rust": "@rust 09-pure/glow/src/lib.rs 96-154",
+      "cpp": {
+        "file": "cpp/09-pure/glow/src/glow_test.cpp",
+        "lines": "1-49",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "10-testing.md",
+      "line": 16,
+      "rust": "@rust 10-testing/levels/src/lib.rs 1-69",
+      "cpp": {
+        "file": "cpp/10-testing/levels/src/levels.cpp",
+        "lines": "1-61",
+        "info": "cpp"
+      }
+    },
+    {
+      "template": "10-testing.md",
+      "line": 39,
+      "rust": "@rust 10-testing/levels/src/lib.rs 71-120",
+      "cpp": {
+        "file": "cpp/10-testing/levels/src/levels_test.cpp",
+        "lines": "1-44",
+        "info": "cpp"
+      },
+      "note": "Run by the SDK's own small test runner (cpp/tests/check.hpp and main.cpp), as its examples' tests are."
+    },
+    {
+      "template": "10-testing.md",
+      "line": 41,
+      "rust": {
+        "inline": "cargo test"
+      },
+      "cpp": {
+        "text": [
+          "sh build.sh test"
+        ],
+        "info": ""
+      }
+    },
+    {
+      "template": "10-testing.md",
+      "line": 98,
+      "rust": "@toml 10-testing/levels/Cargo.toml",
+      "cpp": {
+        "file": "cpp/10-testing/levels/build.sh",
+        "lines": "1-29",
+        "info": "sh"
+      }
+    },
+    {
+      "template": "10-testing.md",
+      "line": 102,
+      "rust": "@sql 10-testing/levels/src/levels.sql",
+      "cpp": {
+        "file": "cpp/10-testing/levels/src/levels.sql",
+        "lines": "1-4",
+        "info": "sql"
+      },
+      "note": "Not a Rust block, but the path it names differs: build/levels.wasm."
+    },
+    {
+      "template": "10-testing.md",
+      "line": 115,
+      "rust": "@json-file 10-testing/levels/ffrwd.json",
+      "cpp": {
+        "file": "cpp/10-testing/levels/ffrwd.json",
+        "lines": "1-19",
+        "info": "json"
+      },
+      "note": "Not a Rust block, but its `test` differs: sh build.sh test."
+    }
+  ],
+  "commands": [
+    {
+      "template": "01-first-node.md",
+      "line": 54,
+      "rust": "The module is `target/wasm32-wasip2/release/invert.wasm`.",
+      "cpp": "The module is `build/invert.wasm`."
+    },
+    {
+      "template": "02-filter.md",
+      "line": 107,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/blend.wasm --bound v,over",
+      "cpp": "$ ffrwd-wasm --shape build/blend.wasm --bound v,over"
+    },
+    {
+      "template": "03-detector.md",
+      "line": 46,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/glow.wasm --bound v",
+      "cpp": "$ ffrwd-wasm --shape build/glow.wasm --bound v"
+    },
+    {
+      "template": "04-reader.md",
+      "line": 57,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/band.wasm --bound v,cues",
+      "cpp": "$ ffrwd-wasm --shape build/band.wasm --bound v,cues"
+    },
+    {
+      "template": "04-reader.md",
+      "line": 98,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/boxmask.wasm --bound v,boxes",
+      "cpp": "$ ffrwd-wasm --shape build/boxmask.wasm --bound v,boxes"
+    },
+    {
+      "template": "05-window.md",
+      "line": 42,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/level.wasm --params '{\"window\":1,\"hop\":0.5}' --bound '[{\"input\":\"a\",\"streams\":[{\"rate\":{\"num\":44100,\"den\":1}}]}]'",
+      "cpp": "$ ffrwd-wasm --shape build/level.wasm --params '{\"window\":1,\"hop\":0.5}' --bound '[{\"input\":\"a\",\"streams\":[{\"rate\":{\"num\":44100,\"den\":1}}]}]'"
+    },
+    {
+      "template": "05-window.md",
+      "line": 90,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/still.wasm --params '{\"longest\":2}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'",
+      "cpp": "$ ffrwd-wasm --shape build/still.wasm --params '{\"longest\":2}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'"
+    },
+    {
+      "template": "06-source.md",
+      "line": 68,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/beat.wasm --params '{\"every\":0.5}'",
+      "cpp": "$ ffrwd-wasm --shape build/beat.wasm --params '{\"every\":0.5}'"
+    },
+    {
+      "template": "07-sink.md",
+      "line": 51,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/tally.wasm --bound video,audio",
+      "cpp": "$ ffrwd-wasm --shape build/tally.wasm --bound video,audio"
+    },
+    {
+      "template": "07-sink.md",
+      "line": 61,
+      "rust": "$ ffrwd-wasm --describe target/wasm32-wasip2/release/tally.wasm",
+      "cpp": "$ ffrwd-wasm --describe build/tally.wasm"
+    },
+    {
+      "template": "08-held.md",
+      "line": 115,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/cutin.wasm --params '{\"port\":9100}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'",
+      "cpp": "$ ffrwd-wasm --shape build/cutin.wasm --params '{\"port\":9100}' --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":15,\"den\":1}}]}]'"
+    },
+    {
+      "template": "08-held.md",
+      "line": 158,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/mosaic.wasm --params '{\"columns\":3,\"width\":960,\"height\":240}' --bound v,v,v",
+      "cpp": "$ ffrwd-wasm --shape build/mosaic.wasm --params '{\"columns\":3,\"width\":960,\"height\":240}' --bound v,v,v"
+    },
+    {
+      "template": "10-testing.md",
+      "line": 54,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound v",
+      "cpp": "$ ffrwd-wasm --shape build/levels.wasm --bound v"
+    },
+    {
+      "template": "10-testing.md",
+      "line": 60,
+      "rust": "$ ffrwd-wasm --shape target/wasm32-wasip2/release/levels.wasm --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":25,\"den\":1}}]}]'",
+      "cpp": "$ ffrwd-wasm --shape build/levels.wasm --bound '[{\"input\":\"v\",\"streams\":[{\"rate\":{\"num\":25,\"den\":1}}]}]'"
+    }
+  ],
+  "prose": [
+    {
+      "template": "01-first-node.md",
+      "line": 104,
+      "says": "`ffrwd init --rust` writes a package",
+      "cpp": "the package is written by hand: see 01-first-node/scaffold"
+    },
+    {
+      "template": "01-first-node.md",
+      "line": 113,
+      "says": "a `Cargo.toml` taking `ffrwd-node` and `ffrwd-frame`",
+      "cpp": "a `build.sh` linking the ffrwd-node library"
+    },
+    {
+      "template": "10-testing.md",
+      "line": 5,
+      "says": "the package `ffrwd init --rust` writes",
+      "cpp": "the scaffold of chapter 1, written by hand"
+    },
+    {
+      "template": "10-testing.md",
+      "line": 86,
+      "says": "`ffrwd init --rust` writes the package around the node",
+      "cpp": "the same files, written by hand"
+    }
+  ]
+}
