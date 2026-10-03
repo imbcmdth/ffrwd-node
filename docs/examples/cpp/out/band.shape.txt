@@ -1,0 +1,67 @@
+$ ffrwd-wasm --shape build/band.wasm --bound v,cues
+{
+  "bounded": true,
+  "clock": {"kind": "input", "port": "v"},
+  "inputs": [
+    {
+      "accepts": {
+        "channel_counts": [],
+        "codecs": [],
+        "like": null,
+        "pixel_formats": ["rgba"],
+        "sample_formats": [],
+        "sample_rates": [],
+        "wants": "all"
+      },
+      "kind": "video",
+      "many": false,
+      "name": "v",
+      "pairing": {"kind": "lockstep"},
+      "required": true,
+      "rows": "ignore",
+      "schema": null,
+      "stride": 1,
+      "window": 1
+    },
+    {
+      "accepts": {
+        "channel_counts": [],
+        "codecs": [],
+        "like": null,
+        "pixel_formats": [],
+        "sample_formats": [],
+        "sample_rates": [],
+        "wants": "all"
+      },
+      "kind": "data",
+      "many": false,
+      "name": "cues",
+      "pairing": {
+        "ahead": 0.5,
+        "anchor": {"kind": "shared_clock"},
+        "group": null,
+        "kind": "interval",
+        "latency": 5.0
+      },
+      "required": true,
+      "rows": "state",
+      "schema": "{\"properties\":{\"end_t\":{\"type\":\"number\"},\"start_t\":{\"type\":\"number\"},\"text\":{\"type\":\"string\"}},\"required\":[\"end_t\",\"start_t\",\"text\"],\"type\":\"object\"}",
+      "stride": 1,
+      "window": 1
+    }
+  ],
+  "one_to_one": true,
+  "outputs": [
+    {
+      "format": {"kind": "like", "pixel_format": null, "port": "v", "sample_format": null},
+      "kind": "video",
+      "latency": 0.0,
+      "name": "v",
+      "row": null,
+      "schema": null,
+      "time_base": null
+    }
+  ],
+  "pure": true,
+  "relation": []
+}

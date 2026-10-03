@@ -1,0 +1,68 @@
+01-first-node-invert.sql.compile.txt: identical
+01-first-node-inverted.framemd5: identical
+01-first-node-package.compile.txt: identical but for the module's path
+01-first-node-package.framemd5: identical
+02-filter-blend.sql.compile.txt: identical
+02-filter-blended.framemd5: identical
+02-filter-hflip.sql.compile.txt: identical
+02-filter-zoom.sql.compile.txt: identical
+02-filter-zoomed.framemd5: identical
+03-detector-glow.sql.compile.txt: identical
+03-detector-glows-jobs1.ndjson: identical
+03-detector-spans-jobs1.ndjson: identical
+03-detector-spans.sql.compile.txt: identical
+04-reader-band.sql.compile.txt: identical
+04-reader-band.sql.delays.txt: identical
+04-reader-banded.framemd5: identical
+04-reader-boxmask.sql.compile.txt: identical
+04-reader-mask.framemd5: identical
+05-window-level.sql.compile.txt: identical
+05-window-level.sql.delays.txt: identical
+05-window-levels.vtt: identical
+05-window-still.sql.compile.txt: identical
+05-window-still.sql.delays.txt: identical
+05-window-stills-jobs1.ndjson: identical
+06-source-bars.framemd5: identical
+06-source-bars.sql.compile.txt: identical
+06-source-beat.framemd5: identical but for the greys, which follow the wall clock
+06-source-beat.sql.compile.txt: identical
+07-sink-encoded.rows.ndjson: identical
+07-sink-encoded.sql.compile.txt: identical
+07-sink-tally.rows.ndjson: identical
+07-sink-tally.sql.compile.txt: identical
+08-held-cutin.framemd5: identical
+08-held-cutin.sql.compile.txt: identical
+08-held-mosaic.framemd5: identical
+08-held-mosaic.sql.compile.txt: identical
+08-held-presence-jobs1.ndjson: identical once counted from the tick the feed was announced on
+08-held-presence.sql.compile.txt: identical
+09-pure-spans-jobs1.ndjson: identical
+09-pure-spans-jobs4.ndjson: identical
+09-pure-spans.sql.compile.txt: identical
+10-testing-package.compile.txt: identical but for the module's path
+10-testing-package.framemd5: identical
+10-testing-refused.sql.compile.txt: identical
+band.shape.txt: identical but for the module's path
+bars-seconds.shape.txt: identical but for the module's path
+bars.shape.txt: identical but for the module's path
+beat.shape.txt: identical but for the module's path
+blend.shape.txt: identical but for the module's path
+boxmask.shape.txt: identical but for the module's path
+cutin-port.shape.txt: identical but for the module's path
+cutin-stream.shape.txt: identical but for the module's path
+glow-3.describe.txt: identical but for the module's path
+glow-3.shape.txt: identical but for the module's path
+glow-9.shape.txt: identical but for the module's path
+invert.describe.txt: identical but for the module's path
+invert.shape.txt: identical but for the module's path
+level-hopping.shape.txt: identical but for the module's path
+level-names.shape.txt: identical but for the module's path
+level-tumbling.shape.txt: identical but for the module's path
+levels-names.shape.txt: identical but for the module's path
+levels-rates.shape.txt: identical but for the module's path
+levels-refused.shape.txt: identical but for the module's path
+mosaic.shape.txt: identical but for the module's path
+still.shape.txt: identical but for the module's path
+tally.describe.txt: identical but for the module's path
+tally.shape.txt: identical but for the module's path
+zoom.shape.txt: identical but for the module's path

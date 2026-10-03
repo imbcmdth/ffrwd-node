@@ -1,0 +1,8 @@
+$ ffrwd compile -f invert.sql
+ffmpeg -i av.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut pipe:1 | ffrwd-wasm \
+  -f nut -i pipe:0 -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -m invert=invert.wasm -filter_complex '[v=0:v]invert[v=out0]' -bound \
+  'invert=[{"input":"v","streams":[{"rate":{"num":15,"den":1}}]}]' -map '[out0]' -f \
+  nut pipe:1 | ffmpeg -i av.mp4 -f nut -analyzeduration 0 -fpsprobesize 3 -i pipe:0 \
+  -map 1:v:0 -map 0:a:0 -c:0 libx264 -c:1 aac inverted.mp4

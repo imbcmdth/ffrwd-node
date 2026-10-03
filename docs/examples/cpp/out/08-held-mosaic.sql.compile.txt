@@ -1,0 +1,21 @@
+$ ffrwd compile -f mosaic.sql
+# named pipes: sidecar0 reads ffmpeg1, ffmpeg2, ffmpeg3
+1. ffmpeg: ffmpeg -copyts -f nut -analyzeduration 0 -fpsprobesize 3 -i pipe:0 -map \
+  0:v:0 -c:0 libx264 mosaic.mp4
+2. ffmpeg: ffmpeg -i av.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut \
+  '<named pipe ffmpeg1-sidecar0 src:a:v:0 write>'
+3. ffmpeg: ffmpeg -i av2.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut \
+  '<named pipe ffmpeg2-sidecar0 src:b:v:0 write>'
+4. ffmpeg: ffmpeg -i testsrc.mp4 -map 0:v:0 -c:0 rawvideo -pix_fmt:0 rgba -f nut \
+  '<named pipe ffmpeg3-sidecar0 src:c:v:0 write>'
+5. sidecar: ffrwd-wasm -f nut -i '<named pipe ffmpeg1-sidecar0 src:a:v:0 read>' -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -f nut -i '<named pipe ffmpeg2-sidecar0 src:b:v:0 read>' -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -f nut -i '<named pipe ffmpeg3-sidecar0 src:c:v:0 read>' -pad \
+  '{"color": {"range": "pc", "primaries": "unknown", "trc": "unknown", "space": "gbr"}}' \
+  -m mosaic=mosaic.wasm -filter_complex \
+  '[v=0:v][v=1:v][v=2:v]mosaic=columns=3:width=960:height=240[v=out0]' -bound \
+  'mosaic=[{"input":"v","streams":[{"rate":{"num":15,"den":1}},{"rate":{"num":15,"den":1}},{"rate":{"num":15,"den":1}}]}]' \
+  -map '[out0]' -f nut pipe:1
+# this listing is not a shell command -- run the plan with `ffrwd run`

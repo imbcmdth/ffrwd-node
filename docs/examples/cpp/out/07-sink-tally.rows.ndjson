@@ -1,0 +1,2 @@
+{"port":"video","codec":"h264","packets":60,"keyframes":1,"bytes":111551,"seconds":3.933333333333333,"pts":235,"time":23.5}
+{"port":"audio","codec":"aac","packets":174,"keyframes":174,"bytes":34914,"seconds":4.017052154195011,"pts":235,"time":23.5}

@@ -1,0 +1,5 @@
+$ ffrwd compile -f beat.sql
+ffrwd-wasm -m beat=beat.wasm -filter_complex \
+  'beat=every=0.5:width=320:height=240[video=out0]' -bound 'beat=[]' -map '[out0]' -f \
+  nut pipe:1 | ffmpeg -copyts -f nut -analyzeduration 0 -fpsprobesize 3 -to 5 -i \
+  pipe:0 -map 0:v:0 -c:0 libx264 beat.mp4
