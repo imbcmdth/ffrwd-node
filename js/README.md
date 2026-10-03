@@ -95,6 +95,24 @@ a row writes its `start_t` and its `id`. `Cue` and `Cues` are a query's cues.
 
 **Errors.** Throw an `Error` or a string; the run ends with its message.
 
+## Crops and resizes
+
+`@ffrwd/node/frame` gives a JavaScript module what the Rust crate
+[ffrwd-frame](https://github.com/imbcmdth/ffrwd-frame) gives a Rust one,
+under its names: `new Rgba(pixels, width, height)` over the bytes a fetch
+hands over, a `Rect` of them (`Rect.whole`, or `Rect.padded` for a
+detector's box widened and clamped to the frame), and `planes`, `tensor`
+and `tensors`, which crop, resize with Pillow's bilinear and normalize into
+the `Float32Array` or the fp32 bytes a vision model reads. The pixels are
+the crate's to the byte, and the tests hold them to digests of its
+answers. A normalization of mean 0 and standard deviation 1/255 hands back
+plain eight-bit values. Pillow's bicubic and the yuv420p conversion are the
+crate's alone.
+
+```js
+import { Filter, planes, Rect, Rgba } from '@ffrwd/node/frame';
+```
+
 ## Building
 
 ```

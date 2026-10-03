@@ -118,6 +118,24 @@ the span they belong to, and a `node.Span` embedded in a row writes its
 **Errors.** Return one; the run ends with its message. A panic in any call
 ends it the same way.
 
+## Crops and resizes
+
+The package `frame` gives a Go module what the Rust crate
+[ffrwd-frame](https://github.com/imbcmdth/ffrwd-frame) gives a Rust one,
+under its names in Go's spelling: `frame.NewRgba` over the bytes a fetch
+hands over, a `frame.Rect` of them (`frame.Whole`, or `frame.Padded` for a
+detector's box widened and clamped to the frame), and `frame.Planes`,
+`frame.Tensor` and `frame.Tensors`, which crop, resize with Pillow's
+bilinear and normalize into the floats or the fp32 bytes a vision model
+reads. The pixels are the crate's to the byte, and the tests hold them to
+digests of its answers. A normalization of mean 0 and standard deviation
+1/255 hands back plain eight-bit values. Pillow's bicubic and the yuv420p
+conversion are the crate's alone.
+
+```go
+import "github.com/imbcmdth/ffrwd-node/go/frame"
+```
+
 ## Building
 
 Mainline Go 1.25.5 or newer, and componentize-go 0.4.1. On Windows the

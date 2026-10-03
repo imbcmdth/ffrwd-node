@@ -246,6 +246,25 @@ the picture inside the boxes it is handed, and `spot`, which numbers its
 sightings by `tick.ordinal()` so it is pure and a run split across workers
 agrees on the ids. Cookbook recipes 146 and 152 run with them.
 
+## Crops and resizes
+
+`ffrwd/frame.hpp` gives a C++ module what the Rust crate
+[ffrwd-frame](https://github.com/imbcmdth/ffrwd-frame) gives a Rust one,
+under its names in `ffrwd::frame`: `Rgba::make` over the bytes a fetch
+hands over, a `Rect` of them (`Rect::whole`, or `Rect::padded` for a
+detector's box widened and clamped to the frame), and `planes`, `tensor`
+and `tensors`, which crop, resize with Pillow's bilinear and normalize into
+the floats or the fp32 bytes a vision model reads. The pixels are the
+crate's to the byte, and the tests hold them to digests of its answers. A
+normalization of mean 0 and standard deviation 1/255 hands back plain
+eight-bit values. Pillow's bicubic and the yuv420p conversion are the
+crate's alone. It is one header, on the include path the library already
+needs:
+
+```cpp
+#include "ffrwd/frame.hpp"
+```
+
 ## Building
 
 What it takes:
@@ -312,7 +331,8 @@ its own: `sh build.sh test`.
 
 ## What it does not do
 
-- Pixels. A node that draws, crops or converts colour brings its own.
+- Pixels past the crop and the resize. A node that draws or converts
+  colour brings its own.
 - Other worlds. `values`, `encoder` and `decoder`, and imports such as
   `wasi:nn` or `wasi:webgpu`, take bindings of the module's own.
 - All of JSON Schema. The params are checked for `type`, `enum`, `const`,

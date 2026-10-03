@@ -12,7 +12,8 @@
   "exports": {
     ".": "./src/index.js",
     "./mock": "./src/mock.js",
-    "./build": "./src/build.js"
+    "./build": "./src/build.js",
+    "./frame": "./src/frame.js"
   },
   "files": [
     "src",
