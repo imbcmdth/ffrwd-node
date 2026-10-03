@@ -1,6 +1,6 @@
 # ffrwd-node
 
-A node is what an ffrwd module is from `ffrwd:av` 0.19.1 on: typed input
+A node is what an ffrwd module is: typed input
 ports, typed output ports and a clock. The host calls it once a tick with
 what each input holds for that tick, and it emits on its outputs. Its ports
 follow from the call's params and from which inputs the call binds, and the

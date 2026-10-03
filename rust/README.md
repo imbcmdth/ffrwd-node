@@ -1,6 +1,6 @@
 # ffrwd-node
 
-A node is what an ffrwd module is from `ffrwd:av` 0.19.1 on: typed input
+A node is what an ffrwd module is: typed input
 ports, typed output ports and a clock. The host calls it once a tick with
 what each input holds for that tick, and it emits on its outputs. Its ports
 follow from the call's params and from which inputs the call binds, and the
@@ -8,7 +8,7 @@ query's compiler reads them before anything runs.
 
 This crate is that world for Rust. Implement `Node` for a type, hand the type
 to `export!`, and build for `wasm32-wasip2`. The crate carries the bindings
-and the rest of what each module used to write for itself: the call
+and the rest of what each module would otherwise write for itself: the call
 sequence, params read against their schema, shapes from builders, time in
 any time base, rows of a state input folded, emissions checked as they are
 made, and errors as the run's message.
